@@ -41,6 +41,7 @@ import {
   Activity,
   RefreshCw
 } from "lucide-react";
+import { DisplayModeCard } from "@/components/ui/display-mode-card";
 
 import {
   haConnectionSettings,
@@ -1640,47 +1641,7 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-3">
-                {displayModes.map((mode) => {
-                  const Icon = mode.icon;
-                  const isSelected = appearance.displayMode === mode.id;
-                  
-                  return (
-                    <div
-                      key={mode.id}
-                      className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                        isSelected 
-                          ? 'border-primary bg-primary/5' 
-                          : 'border-border hover:border-primary/50'
-                      }`}
-                      onClick={() => handleDisplayModeChange(mode.id as "tv" | "desktop" | "tablet" | "phone")}
-                    >
-                      <div className="flex items-start gap-3">
-                        <Icon className={`w-5 h-5 mt-0.5 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
-                        <div className="flex-1">
-                          <h4 className={`font-medium ${isSelected ? 'text-primary' : ''}`}>
-                            {mode.name}
-                          </h4>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            {mode.description}
-                          </p>
-                          <div className="flex flex-wrap gap-1">
-                            {mode.features.map((feature, index) => (
-                              <Badge 
-                                key={index} 
-                                variant={isSelected ? "default" : "secondary"} 
-                                className="text-xs"
-                              >
-                                {feature}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <DisplayModeCard />
             </CardContent>
           </Card>
 
