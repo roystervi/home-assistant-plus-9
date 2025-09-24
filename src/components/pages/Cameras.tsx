@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 // Import the new CameraCard
@@ -615,7 +616,7 @@ export default function Cameras() {
                 {/* Controls overlay */}
                 <div className="absolute bottom-4 left-4 right-4 flex gap-2">
                   <Button variant="outline" size="sm" onClick={handleSnapshot}>
-                    <Camera className="h-4 w-4 mr-1" />
+                    <CameraIcon className="h-4 w-4 mr-1" />
                     Snapshot
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => handleRecordNow(selectedCamera!)}>
