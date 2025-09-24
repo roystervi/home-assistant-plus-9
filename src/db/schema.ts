@@ -38,11 +38,11 @@ export const automations = sqliteTable('automations', {
   name: text('name').notNull(),
   description: text('description'),
   enabled: integer('enabled', { mode: 'boolean' }).default(true),
+  lastRun: text('last_run'),
   source: text('source').notNull().default('local'),
   tags: text('tags', { mode: 'json' }),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
-  lastRun: text('last_run'),
 });
 
 export const automationTriggers = sqliteTable('automation_triggers', {

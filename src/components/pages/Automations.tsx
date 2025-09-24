@@ -118,14 +118,14 @@ export default function Automations() {
   const loadAutomations = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/automations');
+      const response = await fetch('/api/automations-new');
       if (!response.ok) throw new Error('Failed to load automations');
       
       const data = await response.json();
-      setAutomations(data);
+      setAutomations(data.data || data); // Handle both paginated and simple responses
       
-      if (data.length > 0 && !selectedAutomation) {
-        loadAutomationDetails(data[0].id);
+      if ((data.data || data).length > 0 && !selectedAutomation) {
+        loadAutomationDetails((data.data || data)[0].id);
       }
     } catch (error) {
       console.error('Error loading automations:', error);
@@ -138,7 +138,7 @@ export default function Automations() {
   // Load detailed automation data with triggers, conditions, actions
   const loadAutomationDetails = useCallback(async (automationId: number) => {
     try {
-      const response = await fetch(`/api/automations/${automationId}`);
+      const response = await fetch(`/api/automations-new?id=${automationId}`);
       if (!response.ok) throw new Error('Failed to load automation details');
       
       const data = await response.json();
@@ -160,7 +160,7 @@ export default function Automations() {
   const createAutomation = useCallback(async () => {
     try {
       setIsSaving(true);
-      const response = await fetch('/api/automations', {
+      const response = await fetch('/api/automations-new', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -188,7 +188,7 @@ export default function Automations() {
     if (!selectedAutomation) return;
     
     try {
-      const response = await fetch(`/api/automations/${selectedAutomation.id}/triggers`, {
+      const response = await fetch(`/api/automations-new/${selectedAutomation.id}/triggers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -217,7 +217,7 @@ export default function Automations() {
     if (!selectedAutomation) return;
     
     try {
-      const response = await fetch(`/api/automations/${selectedAutomation.id}/conditions`, {
+      const response = await fetch(`/api/automations-new/${selectedAutomation.id}/conditions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -248,7 +248,7 @@ export default function Automations() {
     if (!selectedAutomation) return;
     
     try {
-      const response = await fetch(`/api/automations/${selectedAutomation.id}/actions`, {
+      const response = await fetch(`/api/automations-new/${selectedAutomation.id}/actions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -277,7 +277,7 @@ export default function Automations() {
 
   const toggleAutomation = useCallback(async (id: number) => {
     try {
-      const response = await fetch(`/api/automations/${id}/toggle`, {
+      const response = await fetch(`/api/automations-new/${id}/toggle`, {
         method: 'PUT'
       });
       
@@ -302,7 +302,7 @@ export default function Automations() {
 
   const duplicateAutomation = useCallback(async (automation: Automation) => {
     try {
-      const response = await fetch(`/api/automations/${automation.id}/duplicate`, {
+      const response = await fetch(`/api/automations-new/${automation.id}/duplicate`, {
         method: 'POST'
       });
       
@@ -320,7 +320,7 @@ export default function Automations() {
   const deleteAutomation = useCallback(async (id: number) => {
     try {
       setIsDeleting(true);
-      const response = await fetch(`/api/automations/${id}`, {
+      const response = await fetch(`/api/automations-new/${id}`, {
         method: 'DELETE'
       });
       
@@ -345,7 +345,7 @@ export default function Automations() {
     if (!selectedAutomation) return;
     
     try {
-      const response = await fetch(`/api/automations/${selectedAutomation.id}/test`, {
+      const response = await fetch(`/api/automations-new/${selectedAutomation.id}/test`, {
         method: 'POST'
       });
       
@@ -357,7 +357,7 @@ export default function Automations() {
         id: Date.now().toString(),
         timestamp: new Date().toLocaleString(),
         result: result.status === 'success' ? 'success' : 'error',
-        message: `${result.summary.successfulActions}/${result.summary.totalActions} actions executed successfully`
+        message: `${result.summary?.successfulActions || 0}/${result.summary?.totalActions || 0} actions executed successfully`
       };
       
       setTestRuns(prev => [newTestRun, ...prev.slice(0, 9)]);
@@ -375,7 +375,7 @@ export default function Automations() {
     
     try {
       setIsSaving(true);
-      const response = await fetch(`/api/automations/${selectedAutomation.id}`, {
+      const response = await fetch(`/api/automations-new/${selectedAutomation.id}?id=${selectedAutomation.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -403,7 +403,7 @@ export default function Automations() {
     if (!selectedAutomation) return;
     
     try {
-      const response = await fetch(`/api/automations/${selectedAutomation.id}/triggers/${triggerId}`, {
+      const response = await fetch(`/api/automations-new/${selectedAutomation.id}/triggers/${triggerId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -430,7 +430,7 @@ export default function Automations() {
     if (!selectedAutomation) return;
     
     try {
-      const response = await fetch(`/api/automations/${selectedAutomation.id}/triggers/${triggerId}`, {
+      const response = await fetch(`/api/automations-new/${selectedAutomation.id}/triggers/${triggerId}`, {
         method: 'DELETE'
       });
       
@@ -455,7 +455,7 @@ export default function Automations() {
     if (!selectedAutomation) return;
     
     try {
-      const response = await fetch(`/api/automations/${selectedAutomation.id}/conditions/${conditionId}`, {
+      const response = await fetch(`/api/automations-new/${selectedAutomation.id}/conditions/${conditionId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -482,7 +482,7 @@ export default function Automations() {
     if (!selectedAutomation) return;
     
     try {
-      const response = await fetch(`/api/automations/${selectedAutomation.id}/conditions/${conditionId}`, {
+      const response = await fetch(`/api/automations-new/${selectedAutomation.id}/conditions/${conditionId}`, {
         method: 'DELETE'
       });
       
@@ -507,7 +507,7 @@ export default function Automations() {
     if (!selectedAutomation) return;
     
     try {
-      const response = await fetch(`/api/automations/${selectedAutomation.id}/actions/${actionId}`, {
+      const response = await fetch(`/api/automations-new/${selectedAutomation.id}/actions/${actionId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -534,7 +534,7 @@ export default function Automations() {
     if (!selectedAutomation) return;
     
     try {
-      const response = await fetch(`/api/automations/${selectedAutomation.id}/actions/${actionId}`, {
+      const response = await fetch(`/api/automations-new/${selectedAutomation.id}/actions/${actionId}`, {
         method: 'DELETE'
       });
       
@@ -586,7 +586,7 @@ mode: single`;
     if (!selectedAutomation) return;
     
     try {
-      const response = await fetch(`/api/automations/${selectedAutomation.id}`, {
+      const response = await fetch(`/api/automations-new/${selectedAutomation.id}?id=${selectedAutomation.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name })
