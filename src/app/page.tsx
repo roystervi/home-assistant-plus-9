@@ -398,12 +398,12 @@ export default function Page() {
           </ScrollArea>
         </nav>
 
-        {/* Main Content Area - Fixed overflow issue */}
+        {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto">
           <div className={`container max-w-7xl mx-auto ${layout.padding}`}>
             <div className="grid grid-cols-1">
               <div className="space-y-6">
-                <CurrentPageComponent />
+                <CurrentPageComponent key={currentPage} />
               </div>
             </div>
           </div>

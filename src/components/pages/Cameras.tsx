@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { Camera, Video, VideoOff, Cctv, HardDrive, MonitorPlay, SwitchCamera, LayoutList } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Camera as CameraIcon, HardDrive, LayoutList, SwitchCamera } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,25 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import videojs, { type Player } from 'video.js';
-import 'video.js/dist/video-js.css';
 
-interface Camera {
-  id: string;
-  name: string;
-  connectionType: "rtsp" | "onvif" | "http" | "rtmp";
-  url: string;
-  username?: string;
-  password?: string;
-  status: "online" | "offline" | "connecting";
-  lastMotion?: string;
-  format?: string;
-  resolution?: string;
-  haEntity?: string;
-}
+// Import the new CameraCard
+import CameraCard, { type Camera } from "@/components/CameraCard";
 
 interface Recording {
   id: string;
@@ -119,9 +104,6 @@ export default function Cameras() {
 
   const [editCamera, setEditCamera] = useState<Partial<Camera>>({});
 
-  // Add video players ref
-  const videoPlayersRef = useRef<Record<string, Player | null>>({});
-
   // Fetch cameras from API
   useEffect(() => {
     const fetchCameras = async () => {
@@ -156,13 +138,12 @@ export default function Cameras() {
     fetchRecordings();
   }, []);
 
-  // Fetch storage locations for compute usage
+  // Fetch storage usage
   const fetchStorageUsage = useCallback(async () => {
     try {
       const response = await fetch('/api/storage-locations');
       if (response.ok) {
         const locations = await response.json();
-        // Compute total used from recordings or locations
         const totalUsed = locations.reduce((sum: number, loc: any) => sum + (loc.used || 0), 0);
         const totalCapacity = locations.reduce((sum: number, loc: any) => sum + (loc.capacity || 0), 0);
         setStorageUsed(totalUsed);
@@ -175,121 +156,27 @@ export default function Cameras() {
 
   useEffect(() => {
     fetchStorageUsage();
-  }, []);
+  }, [fetchStorageUsage]);
 
-  // Initialize video player - updated to use ref
-  const initVideoPlayer = useCallback((cameraId: string, containerRef: React.RefObject<HTMLDivElement>) => {
-    if (videoPlayersRef.current[cameraId] || !containerRef.current) return;
-
-    // Clear existing content (e.g., React-rendered placeholder)
-    containerRef.current.innerHTML = '';
-
-    const video = document.createElement('video-js');
-    video.className = 'video-js';
-    video.setAttribute('controls', 'true');
-    video.setAttribute('preload', 'auto');
-    video.setAttribute('width', '100%');
-    video.setAttribute('height', '100%');
-    containerRef.current.appendChild(video);
-
-    const player = videojs(video, {
-      fluid: true,
-      responsive: true,
-      sources: [{
-        src: `/api/stream/${cameraId}`,
-        type: 'application/x-mpegURL'
-      }],
-      plugins: {}
-    });
-
-    player.ready(() => {
-      videoPlayersRef.current[cameraId] = player;
-    });
-
-    player.on('error', () => {
-      // Dispose before clearing
-      if (videoPlayersRef.current[cameraId]) {
-        videoPlayersRef.current[cameraId]?.dispose();
-        videoPlayersRef.current[cameraId] = null;
-      }
-      // Fallback
-      if (containerRef.current) {
-        containerRef.current.innerHTML = `
-          <div class="aspect-video bg-muted rounded-lg flex items-center justify-center">
-            <VideoOff className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-            <p class="text-sm text-muted-foreground">Stream Unavailable</p>
-          </div>
-        `;
-      }
-    });
-
-    return player;
-  }, []);
-
-  // Cleanup players
-  useEffect(() => {
-    return () => {
-      Object.values(videoPlayersRef.current).forEach(player => {
-        if (player && !player.isDisposed_) {
-          player.dispose();
-        }
-      });
-      videoPlayersRef.current = {};
-    };
-  }, []);
-
-  // Add effect to clean up players when cameras change
-  useEffect(() => {
-    // Dispose players for removed cameras
-    Object.keys(videoPlayersRef.current).forEach(cameraId => {
-      if (!cameras.some(c => c.id === cameraId) && videoPlayersRef.current[cameraId]) {
-        const player = videoPlayersRef.current[cameraId];
-        if (player && !player.isDisposed_) {
-          player.dispose();
-        }
-        delete videoPlayersRef.current[cameraId];
-        // Clear container if it exists
-        const container = playerRefs.current[cameraId];
-        if (container) {
-          container.innerHTML = `
-            <div class="aspect-video bg-muted rounded-lg flex items-center justify-center">
-              <VideoOff className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-              <p class="text-sm text-muted-foreground">Camera Removed</p>
-            </div>
-          `;
-        }
-      }
-    });
-  }, [cameras]);
-
-  // Add effect to initialize players after cameras load
-  useEffect(() => {
-    cameras.forEach(camera => {
-      const container = playerRefs.current[camera.id];
-      if (container && !videoPlayersRef.current[camera.id] && camera.status === 'online') {
-        initVideoPlayer(camera.id, { current: container });
-      }
-    });
-  }, [cameras, initVideoPlayer]);
-
-  const handleEditCamera = async (camera: Camera) => {
+  const handleEditCamera = (camera: Camera) => {
     setSelectedCamera(camera);
+    setEditCamera({
+      name: camera.name,
+      connectionType: camera.connectionType,
+      url: camera.url,
+      username: camera.username || '',
+      password: camera.password || '',
+      format: camera.format || '',
+      resolution: camera.resolution || '',
+      haEntity: camera.haEntity || ''
+    });
     setIsEditCameraOpen(true);
   };
 
   const handleSaveEdit = async () => {
     if (!selectedCamera) return;
 
-    const updateData: Partial<Camera> = {
-      name: selectedCamera.name,
-      connectionType: selectedCamera.connectionType,
-      url: selectedCamera.url,
-      username: selectedCamera.username,
-      password: selectedCamera.password,
-      format: selectedCamera.format,
-      resolution: selectedCamera.resolution,
-      haEntity: selectedCamera.haEntity
-    };
+    const updateData: Partial<Camera> = editCamera;
 
     try {
       const response = await fetch(`/api/cameras/${selectedCamera.id}`, {
@@ -312,7 +199,7 @@ export default function Cameras() {
     }
   };
 
-  const handleDeleteCamera = async (camera: Camera) => {
+  const handleDeleteCamera = (camera: Camera) => {
     setDeletingCamera(camera);
     setIsDeleteConfirmOpen(true);
   };
@@ -331,7 +218,7 @@ export default function Cameras() {
         setRecordings(prev => prev.filter(r => r.cameraId !== deletingCamera.id));
         setIsDeleteConfirmOpen(false);
         setDeletingCamera(null);
-        toast.success(`Camera "${deletingCamera.name}" deleted (removed ${data.deletedRecordingsCount} recordings)`);
+        toast.success(`Camera "${deletingCamera.name}" deleted (${data.deletedRecordingsCount || 0} recordings removed)`);
       } else {
         const error = await response.json();
         toast.error(error.error || 'Failed to delete camera');
@@ -341,25 +228,9 @@ export default function Cameras() {
     }
   };
 
-  // Update newCamera to editCamera for edit dialog
-  useEffect(() => {
-    if (selectedCamera) {
-      setEditCamera({
-        name: selectedCamera.name,
-        connectionType: selectedCamera.connectionType,
-        url: selectedCamera.url,
-        username: selectedCamera.username || '',
-        password: selectedCamera.password || '',
-        format: selectedCamera.format || '',
-        resolution: selectedCamera.resolution || '',
-        haEntity: selectedCamera.haEntity || ''
-      });
-    }
-  }, [selectedCamera]);
-
   const handleAddCamera = async () => {
     if (!newCamera.name || !newCamera.url) {
-      toast.error("Please fill in required fields");
+      toast.error("Name and URL are required");
       return;
     }
 
@@ -374,47 +245,67 @@ export default function Cameras() {
         const added = await response.json();
         setCameras(prev => [...prev, { ...added, status: 'connecting' }]);
         setIsAddCameraOpen(false);
-        setNewCamera({ /* reset */ });
-        toast.success("Camera added successfully");
+        setNewCamera({
+          name: "",
+          connectionType: "rtsp" as const,
+          url: "",
+          username: "",
+          password: "",
+          format: "",
+          resolution: "",
+          haEntity: ""
+        });
+        toast.success("Camera added");
 
-        // Simulate connection
+        // Simulate connection status update
         setTimeout(() => {
-          setCameras(prev => prev.map(c => c.id === added.id ? { ...c, status: "online" } : c));
+          setCameras(prev => 
+            prev.map(c => c.id === added.id ? { ...c, status: "online" } : c)
+          );
         }, 2000);
       } else {
         const error = await response.json();
-        toast.error(error.error || 'Failed to add camera');
+        toast.error(error.message || 'Failed to add camera');
       }
     } catch (error) {
-      toast.error('Error adding camera');
+      toast.error('Network error adding camera');
     }
   };
 
-  const handleTestStream = async (camera: Camera) => {
-    toast.info(`Testing stream for ${camera.name}...`);
-    
-    // Simulate stream test
+  const handleTestStream = (camera: Camera) => {
+    toast.info(`Testing ${camera.name}...`);
+    // Simulate test
     setTimeout(() => {
-      toast.success(`Stream test successful - Format: H.264, Latency: 85ms`);
+      toast.success(`${camera.name} stream: Connected (H.264, 1920x1080, 85ms latency)`);
     }, 1500);
   };
 
   const handleSnapshot = (camera: Camera) => {
-    toast.success(`Snapshot captured for ${camera.name}`);
+    toast.success(`Snapshot saved for ${camera.name}`);
+    // Could call API here
   };
 
   const handleRecordNow = async (camera: Camera) => {
+    if (camera.status !== "online") {
+      toast.error("Camera must be online to record");
+      return;
+    }
+
     try {
       const response = await fetch('/api/recordings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cameraId: camera.id, trigger: 'manual', storageLocationId: 1 }) // Default location
+        body: JSON.stringify({ 
+          cameraId: camera.id, 
+          trigger: 'manual' as const, 
+          duration: 30 // seconds
+        })
       });
 
       if (response.ok) {
-        const newRec = await response.json();
-        setRecordings(prev => [newRec, ...prev]);
-        toast.success(`Recording started for ${camera.name}`);
+        const newRecording = await response.json();
+        setRecordings(prev => [newRecording, ...prev]);
+        toast.success(`Recording started: ${camera.name}`);
       } else {
         toast.error('Failed to start recording');
       }
@@ -432,27 +323,20 @@ export default function Cameras() {
       } else {
         toast.error('Failed to delete recording');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error deleting recording');
     }
   };
 
-  const getStatusBadge = (status: Camera["status"]) => {
-    const variants = {
-      online: "default",
-      offline: "destructive", 
-      connecting: "secondary"
-    } as const;
-
-    return (
-      <Badge variant={variants[status]}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </Badge>
-    );
+  const handleFullView = (camera: Camera) => {
+    setSelectedCamera(camera);
+    setIsFullViewOpen(true);
   };
 
   const formatFileSize = (bytes: number) => {
-    return `${bytes.toFixed(1)} MB`;
+    if (bytes < 1024) return `${bytes} B`;
+    const mb = bytes / 1024;
+    return `${mb.toFixed(1)} MB`;
   };
 
   const formatDuration = (seconds: number) => {
@@ -461,74 +345,60 @@ export default function Cameras() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const playerRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Cameras & NVR</h1>
-          <p className="text-muted-foreground">
-            Manage cameras, live feeds, and recording storage
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">Cameras & NVR</h1>
+          <p className="text-muted-foreground">Manage security cameras and recording systems</p>
         </div>
-
         <Dialog open={isAddCameraOpen} onOpenChange={setIsAddCameraOpen}>
           <DialogTrigger asChild>
             <Button>
-              <Camera className="h-4 w-4 mr-2" />
+              <CameraIcon className="h-4 w-4 mr-2" />
               Add Camera
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Add New Camera</DialogTitle>
-              <DialogDescription>
-                Configure a new camera connection
-              </DialogDescription>
+              <DialogTitle>Add Camera</DialogTitle>
+              <DialogDescription>Configure new camera connection</DialogDescription>
             </DialogHeader>
-
-            <div className="space-y-4">
+            <div className="space-y-4 py-4">
               <div>
-                <Label htmlFor="name">Camera Name *</Label>
+                <Label htmlFor="name">Name *</Label>
                 <Input
                   id="name"
                   value={newCamera.name}
                   onChange={(e) => setNewCamera(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="e.g., Front Door"
+                  placeholder="Front Door Camera"
                 />
               </div>
-
               <div>
-                <Label htmlFor="connectionType">Connection Type</Label>
-                <Select
-                  value={newCamera.connectionType}
-                  onValueChange={(value: any) => setNewCamera(prev => ({ ...prev, connectionType: value }))}
-                >
+                <Label htmlFor="type">Type</Label>
+                <Select value={newCamera.connectionType} onValueChange={(val) => setNewCamera(prev => ({ ...prev, connectionType: val as any }))}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="rtsp">RTSP</SelectItem>
                     <SelectItem value="onvif">ONVIF</SelectItem>
-                    <SelectItem value="http">HTTP</SelectItem>
+                    <SelectItem value="http">HTTP/MJPEG</SelectItem>
                     <SelectItem value="rtmp">RTMP</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-
               <div>
                 <Label htmlFor="url">Stream URL *</Label>
                 <Input
                   id="url"
                   value={newCamera.url}
                   onChange={(e) => setNewCamera(prev => ({ ...prev, url: e.target.value }))}
-                  placeholder="rtsp://192.168.1.100/stream1"
+                  placeholder="rtsp://username:password@ip:port/stream"
                 />
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label htmlFor="username">Username</Label>
                   <Input
@@ -547,44 +417,36 @@ export default function Cameras() {
                   />
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label htmlFor="format">Format</Label>
-                  <Select
-                    value={newCamera.format}
-                    onValueChange={(value) => setNewCamera(prev => ({ ...prev, format: value }))}
-                  >
+                  <Select value={newCamera.format} onValueChange={(val) => setNewCamera(prev => ({ ...prev, format: val }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="Auto" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="h264">H.264</SelectItem>
-                      <SelectItem value="h265">H.265</SelectItem>
-                      <SelectItem value="mjpeg">MJPEG</SelectItem>
+                      <SelectItem value="H.264">H.264</SelectItem>
+                      <SelectItem value="H.265">H.265</SelectItem>
+                      <SelectItem value="MJPEG">MJPEG</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
                   <Label htmlFor="resolution">Resolution</Label>
-                  <Select
-                    value={newCamera.resolution}
-                    onValueChange={(value) => setNewCamera(prev => ({ ...prev, resolution: value }))}
-                  >
+                  <Select value={newCamera.resolution} onValueChange={(val) => setNewCamera(prev => ({ ...prev, resolution: val }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="Auto" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1920x1080">1920x1080</SelectItem>
-                      <SelectItem value="1280x720">1280x720</SelectItem>
-                      <SelectItem value="640x480">640x480</SelectItem>
+                      <SelectItem value="1920x1080">1080p</SelectItem>
+                      <SelectItem value="1280x720">720p</SelectItem>
+                      <SelectItem value="640x480">480p</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-
               <div>
-                <Label htmlFor="haEntity">Home Assistant Entity (Optional)</Label>
+                <Label htmlFor="haEntity">HA Entity ID (Optional)</Label>
                 <Input
                   id="haEntity"
                   value={newCamera.haEntity}
@@ -592,15 +454,11 @@ export default function Cameras() {
                   placeholder="camera.front_door"
                 />
               </div>
-
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2">
                 <Button onClick={handleAddCamera} className="flex-1">
                   Add Camera
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsAddCameraOpen(false)}
-                >
+                <Button variant="outline" onClick={() => setIsAddCameraOpen(false)}>
                   Cancel
                 </Button>
               </div>
@@ -609,151 +467,53 @@ export default function Cameras() {
         </Dialog>
       </div>
 
+      {/* Camera Grid + Sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Camera Grid */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {cameras.map((camera) => {
-              return (
-                <Card key={camera.id} className="relative">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{camera.name}</CardTitle>
-                      {getStatusBadge(camera.status)}
-                    </div>
-                    <CardDescription className="flex items-center gap-2">
-                      <Cctv className="h-4 w-4" />
-                      {camera.connectionType.toUpperCase()}
-                      {camera.format && (
-                        <>
-                          • {camera.format}
-                          {camera.resolution && ` • ${camera.resolution}`}
-                        </>
-                      )}
-                    </CardDescription>
-                  </CardHeader>
-
-                  <CardContent className="space-y-4">
-                    <div 
-                      ref={(el) => {
-                        playerRefs.current[camera.id] = el;
-                      }}
-                      className="aspect-video bg-muted rounded-lg relative"
-                      style={{ height: '200px' }}
-                    >
-                      {/* Fallback placeholder */}
-                      {(!videoPlayersRef.current[camera.id] || camera.status !== "online") && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="text-center">
-                            {camera.status === "online" ? (
-                              <MonitorPlay className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                            ) : (
-                              <VideoOff className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                            )}
-                            <p className="text-sm text-muted-foreground">
-                              {camera.status === "online" ? "Loading stream..." : "Camera Offline"}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {camera.lastMotion && (
-                      <div className="text-sm text-muted-foreground">
-                        Last motion: {camera.lastMotion}
-                      </div>
-                    )}
-
-                    {/* Quick Controls */}
-                    <div className="flex gap-2 flex-wrap">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleSnapshot(camera)}
-                        disabled={camera.status !== "online"}
-                      >
-                        <Camera className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRecordNow(camera)}
-                        disabled={camera.status !== "online"}
-                      >
-                        <Video className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleTestStream(camera)}
-                      >
-                        Test
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEditCamera(camera)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleDeleteCamera(camera)}
-                      >
-                        Delete
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedCamera(camera);
-                          setIsFullViewOpen(true);
-                        }}
-                        disabled={camera.status !== "online"}
-                        className="flex-1"
-                      >
-                        <SwitchCamera className="h-4 w-4 mr-2" />
-                        Full View
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {cameras.map((camera) => (
+              <CameraCard
+                key={camera.id}
+                camera={camera}
+                onEdit={handleEditCamera}
+                onDelete={handleDeleteCamera}
+                onSnapshot={handleSnapshot}
+                onRecord={handleRecordNow}
+                onTest={handleTestStream}
+                onFullView={handleFullView}
+              />
+            ))}
           </div>
         </div>
 
-        {/* Right Column - NVR Storage & Rules */}
-        <div className="space-y-4">
-          {/* Storage Summary */}
+        {/* Sidebar */}
+        <div className="space-y-6 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
+          {/* Storage Card */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <HardDrive className="h-5 w-5" />
-                NVR Storage
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <HardDrive className="h-4 w-4" />
+                Storage Usage
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span>Used Space</span>
-                  <span>{storageUsed} GB / {storageTotal} GB</span>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Used</span>
+                  <span>{storageUsed.toFixed(1)} / {storageTotal} GB</span>
                 </div>
-                <Progress value={(storageUsed / storageTotal) * 100} />
+                <Progress value={(storageUsed / storageTotal) * 100} className="h-2" />
               </div>
-
-              <div className="text-sm space-y-1">
+              <div className="text-xs space-y-1 text-muted-foreground">
                 <div className="flex justify-between">
-                  <span>Recordings:</span>
-                  <span>{recordings.length} files</span>
+                  <span>Total Files</span>
+                  <span>{recordings.length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Retention:</span>
-                  <span>7 days avg</span>
+                  <span>Avg Retention</span>
+                  <span>7 days</span>
                 </div>
               </div>
-
               <Button variant="outline" size="sm" className="w-full">
                 Manage Storage
               </Button>
@@ -762,181 +522,227 @@ export default function Cameras() {
 
           {/* Recording Rules */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <LayoutList className="h-5 w-5" />
-                Recording Rules
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <LayoutList className="h-4 w-4" />
+                Rules ({recordingRules.length})
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-2 pt-0">
               {recordingRules.map((rule) => {
-                const camera = cameras.find(c => c.id === rule.cameraId);
+                const cam = cameras.find(c => c.id === rule.cameraId);
                 return (
-                  <div key={rule.id} className="flex items-center justify-between p-2 border rounded-lg">
+                  <div key={rule.id} className="flex items-center justify-between p-3 border rounded-md">
                     <div className="space-y-1">
-                      <div className="font-medium text-sm">{rule.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {camera?.name} • {rule.trigger} • {rule.retentionDays}d
-                      </div>
+                      <p className="font-medium text-sm">{rule.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {cam?.name} • {rule.trigger} trigger • {rule.retentionDays} days
+                      </p>
                     </div>
-                    <Switch checked={rule.enabled} />
+                    <Switch checked={rule.enabled} disabled />
                   </div>
                 );
               })}
-
-              <Button variant="outline" size="sm" className="w-full">
-                Add Rule
+              <Button variant="outline" size="sm" className="w-full mt-2">
+                + New Rule
               </Button>
             </CardContent>
           </Card>
 
           {/* Recent Recordings */}
           <Card>
-            <CardHeader>
-              <CardTitle>Recent Recordings</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Recent Recordings</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {recordings.slice(0, 5).map((recording) => {
-                const camera = cameras.find(c => c.id === recording.cameraId);
+            <CardContent className="space-y-2 pt-0">
+              {recordings.slice(0, 5).map((rec) => {
+                const cam = cameras.find(c => c.id === rec.cameraId);
                 return (
-                  <div key={recording.id} className="flex items-center justify-between p-2 border rounded-lg">
-                    <div className="space-y-1 flex-1">
-                      <div className="font-medium text-sm">{camera?.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {recording.timestamp} • {formatFileSize(recording.size)}
-                      </div>
+                  <div key={rec.id} className="flex items-center justify-between p-3 border rounded-md text-sm">
+                    <div className="space-y-1 min-w-0">
+                      <p className="font-medium truncate">{cam?.name ?? "Unknown"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {rec.timestamp} • {formatDuration(rec.duration)} • {formatFileSize(rec.size * 1024 * 1024)}
+                      </p>
                     </div>
-                    <Badge variant="outline" className="text-xs">
-                      {recording.trigger}
-                    </Badge>
+                    <Badge variant="outline" className="text-xs">{rec.trigger}</Badge>
                   </div>
                 );
               })}
+              {recordings.length === 0 && (
+                <p className="text-center text-sm text-muted-foreground py-8">No recordings yet</p>
+              )}
             </CardContent>
           </Card>
         </div>
       </div>
 
-      {/* Full View Modal */}
-      <Dialog open={isFullViewOpen} onOpenChange={setIsFullViewOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>{selectedCamera?.name} - Live View</DialogTitle>
+      {/* Full View Dialog */}
+      <Dialog open={isFullViewOpen} onOpenChange={setIsFullViewOpen} modal={false}>
+        <DialogContent className="max-w-6xl h-[90vh] max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex flex-row items-center justify-between pb-4 -mx-6">
+            <DialogTitle className="text-xl">
+              {selectedCamera?.name} - Live View
+            </DialogTitle>
+            <Button variant="ghost" size="sm" onClick={() => setIsFullViewOpen(false)}>
+              <SwitchCamera className="h-4 w-4 rotate-180" />
+            </Button>
           </DialogHeader>
 
-          <Tabs defaultValue="live" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="live">Live Feed</TabsTrigger>
+          <Tabs defaultValue="live" className="flex-1 flex flex-col overflow-hidden">
+            <TabsList className="grid grid-cols-3">
+              <TabsTrigger value="live">Live</TabsTrigger>
               <TabsTrigger value="recordings">Recordings</TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="live" className="space-y-4">
-              <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-                <div className="text-center">
-                  <MonitorPlay className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-lg font-medium">Live Feed Player</p>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedCamera?.format} • {selectedCamera?.resolution}
-                  </p>
+            <TabsContent value="live" className="flex-1 p-0 overflow-hidden">
+              <div className="flex-1 relative aspect-video bg-black rounded-md overflow-hidden">
+                {/* Full screen video player container */}
+                <div className="absolute inset-0">
+                  {selectedCamera && (
+                    <CameraCard
+                      camera={selectedCamera}
+                      onEdit={() => {}} // Disabled in modal
+                      onDelete={() => {}}
+                      onSnapshot={() => toast.success("Snapshot taken")}
+                      onRecord={() => handleRecordNow(selectedCamera)}
+                      onTest={() => handleTestStream(selectedCamera)}
+                      onFullView={() => {}} // Already full
+                    />
+                  )}
+                </div>
+                {/* Controls overlay */}
+                <div className="absolute bottom-4 left-4 right-4 flex gap-2">
+                  <Button variant="outline" size="sm" onClick={handleSnapshot}>
+                    <Camera className="h-4 w-4 mr-1" />
+                    Snapshot
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleRecordNow(selectedCamera!)}>
+                    <Video className="h-4 w-4 mr-1" />
+                    Record Now
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    PTZ Controls
+                  </Button>
                 </div>
               </div>
-
-              <div className="flex gap-2 justify-center">
-                <Button variant="outline">
-                  <Camera className="h-4 w-4 mr-2" />
-                  Snapshot
-                </Button>
-                <Button variant="outline">
-                  <Video className="h-4 w-4 mr-2" />
-                  Record
-                </Button>
-                <Button variant="outline">Download Clip</Button>
+              <div className="pt-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Format: {selectedCamera?.format || "Auto"}</span>
+                  <span>Resolution: {selectedCamera?.resolution || "Auto"}</span>
+                </div>
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Status: {selectedCamera?.status}</span>
+                  <span>Codec: H.264</span>
+                </div>
               </div>
             </TabsContent>
 
-            <TabsContent value="recordings" className="space-y-4">
-              <div className="space-y-2">
+            <TabsContent value="recordings" className="space-y-4 overflow-y-auto p-4">
+              <div className="space-y-3">
                 {recordings
                   .filter(r => r.cameraId === selectedCamera?.id)
-                  .map((recording) => (
-                    <div key={recording.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="space-y-1">
-                        <div className="font-medium">{recording.filename}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {recording.timestamp} • {formatDuration(recording.duration)} • {formatFileSize(recording.size)}
+                  .map((rec) => (
+                    <div key={rec.id} className="flex items-center justify-between p-4 border rounded-lg bg-card">
+                      <div className="space-y-2 flex-1">
+                        <div className="font-medium">{rec.filename}</div>
+                        <div className="text-sm text-muted-foreground space-x-4">
+                          <span>{rec.timestamp}</span>
+                          <span>• {formatDuration(rec.duration)}</span>
+                          <span>• {formatFileSize(rec.size * 1024 * 1024)}</span>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Badge variant="outline">{recording.trigger}</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{rec.trigger}</Badge>
                         <Button variant="outline" size="sm">Play</Button>
                         <Button variant="outline" size="sm">Download</Button>
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => handleDeleteRecording(recording.id)}
+                          onClick={() => handleDeleteRecording(rec.id)}
                         >
                           Delete
                         </Button>
                       </div>
                     </div>
                   ))}
+                {recordings.filter(r => r.cameraId === selectedCamera?.id).length === 0 && (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <VideoOff className="h-12 w-12 mx-auto mb-4" />
+                    <p>No recordings found</p>
+                  </div>
+                )}
               </div>
             </TabsContent>
 
-            <TabsContent value="settings" className="space-y-4">
+            <TabsContent value="settings" className="space-y-6 p-4 overflow-y-auto">
               <div className="space-y-4">
-                <div>
-                  <Label>Camera Name</Label>
-                  <Input value={selectedCamera?.name || ""} readOnly />
-                </div>
-                <div>
-                  <Label>Stream URL</Label>
-                  <Input value={selectedCamera?.url || ""} readOnly />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Camera Name</Label>
+                    <Input value={selectedCamera?.name || ""} readOnly className="mt-1" />
+                  </div>
+                  <div>
+                    <Label>Connection Type</Label>
+                    <Input 
+                      value={selectedCamera?.connectionType.toUpperCase() || ""} 
+                      readOnly 
+                      className="mt-1" 
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Stream URL</Label>
+                    <Input 
+                      value={selectedCamera?.url || ""} 
+                      readOnly 
+                      className="mt-1" 
+                    />
+                  </div>
                   <div>
                     <Label>Format</Label>
-                    <Input value={selectedCamera?.format || "Auto"} readOnly />
+                    <Input value={selectedCamera?.format || "Auto"} readOnly className="mt-1" />
                   </div>
                   <div>
                     <Label>Resolution</Label>
-                    <Input value={selectedCamera?.resolution || "Auto"} readOnly />
+                    <Input value={selectedCamera?.resolution || "Auto"} readOnly className="mt-1" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>HA Entity</Label>
+                    <Input value={selectedCamera?.haEntity || "Not set"} readOnly className="mt-1" />
                   </div>
                 </div>
-                <Button variant="outline" className="w-full">
-                  Edit Camera Settings
-                </Button>
+                <div className="pt-4 border-t">
+                  <Button onClick={handleEditCamera} className="w-full">
+                    Edit Camera Settings
+                  </Button>
+                </div>
               </div>
             </TabsContent>
           </Tabs>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Camera Dialog */}
+      {/* Edit Dialog */}
       <Dialog open={isEditCameraOpen} onOpenChange={setIsEditCameraOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Camera</DialogTitle>
+            <DialogTitle>Edit {selectedCamera?.name}</DialogTitle>
+            <DialogDescription>Update camera configuration</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 py-4">
             <div>
-              <Label>Camera Name</Label>
+              <Label>Name</Label>
               <Input
-                value={editCamera.name || ''}
-                onChange={(e) => {
-                  setEditCamera(prev => ({ ...prev, name: e.target.value }));
-                  setSelectedCamera(prev => prev ? { ...prev, name: e.target.value } : null);
-                }}
-                placeholder="Camera Name"
+                value={editCamera.name || ""}
+                onChange={(e) => setEditCamera(prev => ({ ...prev, name: e.target.value }))}
               />
             </div>
-
             <div>
-              <Label htmlFor="connectionType">Connection Type</Label>
-              <Select
-                value={editCamera.connectionType || "rtsp"}
-                onValueChange={(value: any) => setEditCamera(prev => ({ ...prev, connectionType: value }))}
+              <Label>Type</Label>
+              <Select 
+                value={editCamera.connectionType || "rtsp"} 
+                onValueChange={(val) => setEditCamera(prev => ({ ...prev, connectionType: val as any }))}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -944,107 +750,98 @@ export default function Cameras() {
                 <SelectContent>
                   <SelectItem value="rtsp">RTSP</SelectItem>
                   <SelectItem value="onvif">ONVIF</SelectItem>
-                  <SelectItem value="http">HTTP</SelectItem>
+                  <SelectItem value="http">HTTP/MJPEG</SelectItem>
                   <SelectItem value="rtmp">RTMP</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
             <div>
-              <Label htmlFor="url">Stream URL</Label>
+              <Label>URL</Label>
               <Input
-                id="url"
                 value={editCamera.url || ""}
                 onChange={(e) => setEditCamera(prev => ({ ...prev, url: e.target.value }))}
-                placeholder="rtsp://192.168.1.100/stream1"
               />
             </div>
-
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label htmlFor="username">Username</Label>
+                <Label>Username</Label>
                 <Input
-                  id="username"
-                  value={editCamera.username || ''}
+                  value={editCamera.username || ""}
                   onChange={(e) => setEditCamera(prev => ({ ...prev, username: e.target.value }))}
                 />
               </div>
               <div>
-                <Label htmlFor="password">Password</Label>
+                <Label>Password</Label>
                 <Input
-                  id="password"
                   type="password"
-                  value={editCamera.password || ''}
+                  value={editCamera.password || ""}
                   onChange={(e) => setEditCamera(prev => ({ ...prev, password: e.target.value }))}
                 />
               </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label htmlFor="format">Format</Label>
-                <Select
-                  value={editCamera.format || "h264"}
-                  onValueChange={(value) => setEditCamera(prev => ({ ...prev, format: value }))}
-                >
+                <Label>Format</Label>
+                <Select value={editCamera.format || ""} onValueChange={(val) => setEditCamera(prev => ({ ...prev, format: val }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="Auto" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="h264">H.264</SelectItem>
-                    <SelectItem value="h265">H.265</SelectItem>
-                    <SelectItem value="mjpeg">MJPEG</SelectItem>
+                    <SelectItem value="H.264">H.264</SelectItem>
+                    <SelectItem value="H.265">H.265</SelectItem>
+                    <SelectItem value="MJPEG">MJPEG</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label htmlFor="resolution">Resolution</Label>
-                <Select
-                  value={editCamera.resolution || "1920x1080"}
-                  onValueChange={(value) => setEditCamera(prev => ({ ...prev, resolution: value }))}
-                >
+                <Label>Resolution</Label>
+                <Select value={editCamera.resolution || ""} onValueChange={(val) => setEditCamera(prev => ({ ...prev, resolution: val }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="Auto" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1920x1080">1920x1080</SelectItem>
-                    <SelectItem value="1280x720">1280x720</SelectItem>
-                    <SelectItem value="640x480">640x480</SelectItem>
+                    <SelectItem value="1920x1080">1080p</SelectItem>
+                    <SelectItem value="1280x720">720p</SelectItem>
+                    <SelectItem value="640x480">480p</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
-
             <div>
-              <Label htmlFor="haEntity">Home Assistant Entity (Optional)</Label>
+              <Label>HA Entity</Label>
               <Input
-                id="haEntity"
-                value={editCamera.haEntity || ''}
+                value={editCamera.haEntity || ""}
                 onChange={(e) => setEditCamera(prev => ({ ...prev, haEntity: e.target.value }))}
-                placeholder="camera.front_door"
               />
             </div>
-
-            <div className="flex gap-2 pt-2">
-              <Button onClick={handleSaveEdit}>Save</Button>
-              <Button variant="outline" onClick={() => setIsEditCameraOpen(false)}>Cancel</Button>
+            <div className="flex gap-2 pt-4">
+              <Button onClick={handleSaveEdit} className="flex-1">
+                Save Changes
+              </Button>
+              <Button variant="outline" onClick={() => setIsEditCameraOpen(false)}>
+                Cancel
+              </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirm Dialog */}
+      {/* Delete Confirmation */}
       <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Camera</DialogTitle>
+            <DialogTitle>Delete {deletingCamera?.name}?</DialogTitle>
             <DialogDescription>
-              This will delete {deletingCamera?.name} and all associated recordings ({recordings.filter(r => r.cameraId === deletingCamera?.id).length} files). This action cannot be undone.
+              This will permanently delete the camera and all {recordings.filter(r => r.cameraId === deletingCamera?.id).length} associated recordings.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => setIsDeleteConfirmOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmDelete}>Delete</Button>
+          <div className="flex gap-2 justify-end pt-4">
+            <Button variant="outline" onClick={() => setIsDeleteConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              Delete Camera
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
