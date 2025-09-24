@@ -39,7 +39,7 @@ interface Entity {
 
 interface Trigger {
   id: number;
-  type: 'entity_state' | 'time' | 'sunrise_sunset' | 'mqtt' | 'zwave';
+  type: 'entity_state' | 'time' | 'sunrise_sunset';
   entityId?: string;
   attribute?: string;
   state?: string;
@@ -816,8 +816,6 @@ mode: single`;
                                   <SelectItem value="entity_state">Entity State</SelectItem>
                                   <SelectItem value="time">Time</SelectItem>
                                   <SelectItem value="sunrise_sunset">Sunrise/Sunset</SelectItem>
-                                  <SelectItem value="mqtt">MQTT Message</SelectItem>
-                                  <SelectItem value="zwave">Z-Wave Event</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -1016,7 +1014,6 @@ mode: single`;
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="service_call">Service Call</SelectItem>
-                                  <SelectItem value="mqtt">MQTT Message</SelectItem>
                                   <SelectItem value="scene">Run Scene</SelectItem>
                                   <SelectItem value="local_device">Local Device</SelectItem>
                                 </SelectContent>

@@ -63,18 +63,6 @@ export async function POST(request: NextRequest) {
             }
             break;
 
-          case 'mqtt':
-            if (!action.topic) {
-              status = 'failed';
-              message = 'MQTT action missing topic';
-              failedActions++;
-            } else {
-              const payloadInfo = action.payload ? ` with payload: ${action.payload}` : '';
-              message = `Would publish to MQTT topic ${action.topic}${payloadInfo}`;
-              successfulActions++;
-            }
-            break;
-
           case 'scene':
             if (!action.sceneId) {
               status = 'failed';
@@ -117,9 +105,6 @@ export async function POST(request: NextRequest) {
           actionResult.service = action.service;
           actionResult.entityId = action.entityId;
           actionResult.data = action.data;
-        } else if (action.type === 'mqtt') {
-          actionResult.topic = action.topic;
-          actionResult.payload = action.payload;
         } else if (action.type === 'scene') {
           actionResult.sceneId = action.sceneId;
         } else if (action.type === 'local_device') {

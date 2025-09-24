@@ -285,21 +285,6 @@ export default function System() {
                           />
                         </div>
                       )}
-                      {service.name === 'MQTT Broker' && (
-                        <div>
-                          <Label htmlFor="mqtt-auth" className="text-xs">Authentication</Label>
-                          <Select defaultValue="none">
-                            <SelectTrigger className="h-8">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">None</SelectItem>
-                              <SelectItem value="basic">Username/Password</SelectItem>
-                              <SelectItem value="tls">TLS Certificate</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
                     </div>
                   </CollapsibleContent>
                 </Collapsible>

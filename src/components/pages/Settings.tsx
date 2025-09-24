@@ -890,7 +890,7 @@ export default function Settings() {
           </div>
           
           {/* Status Overview */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${getStatusColor(connectionStatus.ha)}`} />
               <span className="text-sm">Home Assistant</span>
@@ -902,14 +902,6 @@ export default function Settings() {
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${getStatusColor(connectionStatus.energy)}`} />
               <span className="text-sm">Energy API</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${getStatusColor(connectionStatus.mqtt)}`} />
-              <span className="text-sm">MQTT Broker</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${getStatusColor(connectionStatus.zwave)}`} />
-              <span className="text-sm">Z-Wave</span>
             </div>
           </div>
         </CardContent>
