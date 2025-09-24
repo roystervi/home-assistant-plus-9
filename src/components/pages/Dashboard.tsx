@@ -34,6 +34,7 @@ import {
   Monitor,
   Thermometer
 } from "lucide-react";
+import { BackgroundColorCard } from "@/components/ui/background-color-card";
 
 // HOME ASSISTANT ALARM ENTITY ID
 const ALARM_ENTITY_ID = "alarm_control_panel.home_alarm";
@@ -703,6 +704,11 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      {/* Background Settings Card */}
+      <div className="grid grid-cols-1 gap-6">
+        <BackgroundColorCard />
       </div>
     </div>
   );
