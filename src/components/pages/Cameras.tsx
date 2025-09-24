@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Camera, Video, VideoOff, Cctv, HardDrive, MonitorPlay, SwitchCamera, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import videojs from 'video.js';
+import 'video.js/dist/video-js.css';
 
 interface Camera {
   id: string;
@@ -98,6 +100,9 @@ export default function Cameras() {
   const [isAddCameraOpen, setIsAddCameraOpen] = useState(false);
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
   const [isFullViewOpen, setIsFullViewOpen] = useState(false);
+  const [isEditCameraOpen, setIsEditCameraOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [deletingCamera, setDeletingCamera] = useState<Camera | null>(null);
   const [storageUsed, setStorageUsed] = useState(156.8);
   const [storageTotal, setStorageTotal] = useState(500);
 
@@ -112,47 +117,231 @@ export default function Cameras() {
     haEntity: ""
   });
 
+  const [editCamera, setEditCamera] = useState<Partial<Camera>>({});
+
+  // Fetch cameras from API
+  useEffect(() => {
+    const fetchCameras = async () => {
+      try {
+        const response = await fetch('/api/cameras');
+        if (response.ok) {
+          const data = await response.json();
+          setCameras(data);
+        } else {
+          toast.error('Failed to load cameras');
+        }
+      } catch (error) {
+        toast.error('Error fetching cameras');
+      }
+    };
+    fetchCameras();
+  }, []);
+
+  // Fetch recordings from API
+  useEffect(() => {
+    const fetchRecordings = async () => {
+      try {
+        const response = await fetch('/api/recordings');
+        if (response.ok) {
+          const data = await response.json();
+          setRecordings(data);
+        }
+      } catch (error) {
+        toast.error('Error fetching recordings');
+      }
+    };
+    fetchRecordings();
+  }, []);
+
+  // Fetch storage locations for compute usage
+  const fetchStorageUsage = useCallback(async () => {
+    try {
+      const response = await fetch('/api/storage-locations');
+      if (response.ok) {
+        const locations = await response.json();
+        // Compute total used from recordings or locations
+        const totalUsed = locations.reduce((sum: number, loc: any) => sum + (loc.used || 0), 0);
+        const totalCapacity = locations.reduce((sum: number, loc: any) => sum + (loc.capacity || 0), 0);
+        setStorageUsed(totalUsed);
+        setStorageTotal(totalCapacity);
+      }
+    } catch (error) {
+      console.error('Error fetching storage');
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStorageUsage();
+  }, []);
+
+  // Initialize video player for a camera
+  const initVideoPlayer = useCallback((cameraId: string, containerRef: React.RefObject<HTMLDivElement>) => {
+    if (videoPlayers[cameraId] || !containerRef.current) return;
+
+    const video = document.createElement('video-js');
+    video.className = 'video-js';
+    video.setAttribute('controls', 'true');
+    video.setAttribute('preload', 'auto');
+    video.setAttribute('width', '100%');
+    video.setAttribute('height', '100%');
+    containerRef.current.appendChild(video);
+
+    const player = videojs(video, {
+      fluid: true,
+      responsive: true,
+      sources: [{
+        src: `/api/stream/${cameraId}`, // Proxy RTSP/RTMP to HLS via API if needed
+        type: 'application/x-mpegURL' // Assume HLS conversion
+      }],
+      plugins: {
+        // Add NVR-specific plugins if available
+      }
+    });
+
+    player.ready(() => {
+      setVideoPlayers(prev => ({ ...prev, [cameraId]: player }));
+      toast.info(`Player initialized for ${cameraId}`);
+    });
+
+    player.on('error', () => {
+      toast.error(`Stream error for camera ${cameraId}`);
+      // Fallback to placeholder
+      containerRef.current!.innerHTML = `
+        <div class="aspect-video bg-muted rounded-lg flex items-center justify-center">
+          <VideoOff className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+          <p class="text-sm text-muted-foreground">Stream Unavailable</p>
+        </div>
+      `;
+    });
+
+    return player;
+  }, [videoPlayers]);
+
+  // Cleanup players
+  useEffect(() => {
+    return () => {
+      Object.values(videoPlayers).forEach(player => {
+        if (player) player.dispose();
+      });
+    };
+  }, [videoPlayers]);
+
+  const handleEditCamera = async (camera: Camera) => {
+    setSelectedCamera(camera);
+    setIsEditCameraOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedCamera) return;
+
+    const updateData: Partial<Camera> = {
+      name: selectedCamera.name,
+      connectionType: selectedCamera.connectionType,
+      url: selectedCamera.url,
+      username: selectedCamera.username,
+      password: selectedCamera.password,
+      format: selectedCamera.format,
+      resolution: selectedCamera.resolution,
+      haEntity: selectedCamera.haEntity
+    };
+
+    try {
+      const response = await fetch(`/api/cameras/${selectedCamera.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData)
+      });
+
+      if (response.ok) {
+        const updated = await response.json();
+        setCameras(prev => prev.map(c => c.id === updated.id ? updated : c));
+        setIsEditCameraOpen(false);
+        toast.success('Camera updated successfully');
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to update camera');
+      }
+    } catch (error) {
+      toast.error('Error updating camera');
+    }
+  };
+
+  const handleDeleteCamera = async (camera: Camera) => {
+    setDeletingCamera(camera);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingCamera) return;
+
+    try {
+      const response = await fetch(`/api/cameras/${deletingCamera.id}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCameras(prev => prev.filter(c => c.id !== deletingCamera.id));
+        setRecordings(prev => prev.filter(r => r.cameraId !== deletingCamera.id));
+        setIsDeleteConfirmOpen(false);
+        setDeletingCamera(null);
+        toast.success(`Camera "${deletingCamera.name}" deleted (removed ${data.deletedRecordingsCount} recordings)`);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to delete camera');
+      }
+    } catch (error) {
+      toast.error('Error deleting camera');
+    }
+  };
+
+  // Update newCamera to editCamera for edit dialog
+  useEffect(() => {
+    if (selectedCamera) {
+      setEditCamera({
+        name: selectedCamera.name,
+        connectionType: selectedCamera.connectionType,
+        url: selectedCamera.url,
+        username: selectedCamera.username || '',
+        password: selectedCamera.password || '',
+        format: selectedCamera.format || '',
+        resolution: selectedCamera.resolution || '',
+        haEntity: selectedCamera.haEntity || ''
+      });
+    }
+  }, [selectedCamera]);
+
   const handleAddCamera = async () => {
     if (!newCamera.name || !newCamera.url) {
       toast.error("Please fill in required fields");
       return;
     }
 
-    const camera: Camera = {
-      id: Date.now().toString(),
-      name: newCamera.name,
-      connectionType: newCamera.connectionType,
-      url: newCamera.url,
-      username: newCamera.username || undefined,
-      password: newCamera.password || undefined,
-      status: "connecting",
-      format: newCamera.format || undefined,
-      resolution: newCamera.resolution || undefined,
-      haEntity: newCamera.haEntity || undefined
-    };
+    try {
+      const response = await fetch('/api/cameras', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCamera)
+      });
 
-    setCameras(prev => [...prev, camera]);
-    setIsAddCameraOpen(false);
-    setNewCamera({
-      name: "",
-      connectionType: "rtsp",
-      url: "",
-      username: "",
-      password: "",
-      format: "",
-      resolution: "",
-      haEntity: ""
-    });
+      if (response.ok) {
+        const added = await response.json();
+        setCameras(prev => [...prev, { ...added, status: 'connecting' }]);
+        setIsAddCameraOpen(false);
+        setNewCamera({ /* reset */ });
+        toast.success("Camera added successfully");
 
-    toast.success("Camera added successfully");
-
-    // Simulate connection test
-    setTimeout(() => {
-      setCameras(prev => prev.map(c => 
-        c.id === camera.id ? { ...c, status: "online" } : c
-      ));
-      toast.success(`${camera.name} connected successfully`);
-    }, 2000);
+        // Simulate connection
+        setTimeout(() => {
+          setCameras(prev => prev.map(c => c.id === added.id ? { ...c, status: "online" } : c));
+        }, 2000);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to add camera');
+      }
+    } catch (error) {
+      toast.error('Error adding camera');
+    }
   };
 
   const handleTestStream = async (camera: Camera) => {
@@ -168,24 +357,38 @@ export default function Cameras() {
     toast.success(`Snapshot captured for ${camera.name}`);
   };
 
-  const handleRecordNow = (camera: Camera) => {
-    const recording: Recording = {
-      id: Date.now().toString(),
-      cameraId: camera.id,
-      filename: `${camera.name.toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().replace(/[:.]/g, '')}.mp4`,
-      timestamp: new Date().toLocaleString(),
-      duration: 0,
-      size: 0,
-      trigger: "manual"
-    };
+  const handleRecordNow = async (camera: Camera) => {
+    try {
+      const response = await fetch('/api/recordings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cameraId: camera.id, trigger: 'manual', storageLocationId: 1 }) // Default location
+      });
 
-    setRecordings(prev => [recording, ...prev]);
-    toast.success(`Recording started for ${camera.name}`);
+      if (response.ok) {
+        const newRec = await response.json();
+        setRecordings(prev => [newRec, ...prev]);
+        toast.success(`Recording started for ${camera.name}`);
+      } else {
+        toast.error('Failed to start recording');
+      }
+    } catch (error) {
+      toast.error('Error starting recording');
+    }
   };
 
-  const handleDeleteRecording = (recordingId: string) => {
-    setRecordings(prev => prev.filter(r => r.id !== recordingId));
-    toast.success("Recording deleted");
+  const handleDeleteRecording = async (recordingId: string) => {
+    try {
+      const response = await fetch(`/api/recordings/${recordingId}`, { method: 'DELETE' });
+      if (response.ok) {
+        setRecordings(prev => prev.filter(r => r.id !== recordingId));
+        toast.success("Recording deleted");
+      } else {
+        toast.error('Failed to delete recording');
+      }
+    } catch (error) {
+      toast.error('Error deleting recording');
+    }
   };
 
   const getStatusBadge = (status: Camera["status"]) => {
@@ -211,6 +414,8 @@ export default function Cameras() {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const playerRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   return (
     <div className="space-y-6">
@@ -362,91 +567,108 @@ export default function Cameras() {
         {/* Main Camera Grid */}
         <div className="lg:col-span-2 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {cameras.map((camera) => (
-              <Card key={camera.id} className="relative">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{camera.name}</CardTitle>
-                    {getStatusBadge(camera.status)}
-                  </div>
-                  <CardDescription className="flex items-center gap-2">
-                    <Cctv className="h-4 w-4" />
-                    {camera.connectionType.toUpperCase()}
-                    {camera.format && (
-                      <>
-                        • {camera.format}
-                        {camera.resolution && ` • ${camera.resolution}`}
-                      </>
-                    )}
-                  </CardDescription>
-                </CardHeader>
+            {cameras.map((camera) => {
+              const playerRef = playerRefs.current[camera.id] || ((container: HTMLDivElement) => {
+                playerRefs.current[camera.id] = container;
+                initVideoPlayer(camera.id, { current: container });
+              });
 
-                <CardContent className="space-y-4">
-                  {/* Live Preview Placeholder */}
-                  <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-                    {camera.status === "online" ? (
-                      <div className="text-center">
-                        <MonitorPlay className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">Live Feed</p>
-                      </div>
-                    ) : (
-                      <div className="text-center">
-                        <VideoOff className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">
-                          {camera.status === "connecting" ? "Connecting..." : "Offline"}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {camera.lastMotion && (
-                    <div className="text-sm text-muted-foreground">
-                      Last motion: {camera.lastMotion}
+              return (
+                <Card key={camera.id} className="relative">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">{camera.name}</CardTitle>
+                      {getStatusBadge(camera.status)}
                     </div>
-                  )}
+                    <CardDescription className="flex items-center gap-2">
+                      <Cctv className="h-4 w-4" />
+                      {camera.connectionType.toUpperCase()}
+                      {camera.format && (
+                        <>
+                          • {camera.format}
+                          {camera.resolution && ` • ${camera.resolution}`}
+                        </>
+                      )}
+                    </CardDescription>
+                  </CardHeader>
 
-                  {/* Quick Controls */}
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSnapshot(camera)}
-                      disabled={camera.status !== "online"}
-                    >
-                      <Camera className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRecordNow(camera)}
-                      disabled={camera.status !== "online"}
-                    >
-                      <Video className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleTestStream(camera)}
-                    >
-                      Test
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedCamera(camera);
-                        setIsFullViewOpen(true);
-                      }}
-                      disabled={camera.status !== "online"}
-                      className="flex-1"
-                    >
-                      <SwitchCamera className="h-4 w-4 mr-2" />
-                      Full View
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  <CardContent className="space-y-4">
+                    <div 
+                      ref={playerRef}
+                      className="aspect-video bg-muted rounded-lg"
+                      style={{ height: '200px' }}
+                    />
+                    
+                    {/* Fallback if no player */}
+                    {!videoPlayers[camera.id] && camera.status === "online" && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <MonitorPlay className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                    )}
+
+                    {camera.lastMotion && (
+                      <div className="text-sm text-muted-foreground">
+                        Last motion: {camera.lastMotion}
+                      </div>
+                    )}
+
+                    {/* Quick Controls */}
+                    <div className="flex gap-2 flex-wrap">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSnapshot(camera)}
+                        disabled={camera.status !== "online"}
+                      >
+                        <Camera className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRecordNow(camera)}
+                        disabled={camera.status !== "online"}
+                      >
+                        <Video className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleTestStream(camera)}
+                      >
+                        Test
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditCamera(camera)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteCamera(camera)}
+                      >
+                        Delete
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedCamera(camera);
+                          setIsFullViewOpen(true);
+                        }}
+                        disabled={camera.status !== "online"}
+                        className="flex-1"
+                      >
+                        <SwitchCamera className="h-4 w-4 mr-2" />
+                        Full View
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
 
@@ -636,6 +858,142 @@ export default function Cameras() {
               </div>
             </TabsContent>
           </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Camera Dialog */}
+      <Dialog open={isEditCameraOpen} onOpenChange={setIsEditCameraOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Camera</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Camera Name</Label>
+              <Input
+                value={editCamera.name || ''}
+                onChange={(e) => {
+                  setEditCamera(prev => ({ ...prev, name: e.target.value }));
+                  setSelectedCamera(prev => prev ? { ...prev, name: e.target.value } : null);
+                }}
+                placeholder="Camera Name"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="connectionType">Connection Type</Label>
+              <Select
+                value={editCamera.connectionType || "rtsp"}
+                onValueChange={(value: any) => setEditCamera(prev => ({ ...prev, connectionType: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="rtsp">RTSP</SelectItem>
+                  <SelectItem value="onvif">ONVIF</SelectItem>
+                  <SelectItem value="http">HTTP</SelectItem>
+                  <SelectItem value="rtmp">RTMP</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="url">Stream URL</Label>
+              <Input
+                id="url"
+                value={editCamera.url || ""}
+                onChange={(e) => setEditCamera(prev => ({ ...prev, url: e.target.value }))}
+                placeholder="rtsp://192.168.1.100/stream1"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  value={editCamera.username || ''}
+                  onChange={(e) => setEditCamera(prev => ({ ...prev, username: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={editCamera.password || ''}
+                  onChange={(e) => setEditCamera(prev => ({ ...prev, password: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="format">Format</Label>
+                <Select
+                  value={editCamera.format || "h264"}
+                  onValueChange={(value) => setEditCamera(prev => ({ ...prev, format: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Auto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="h264">H.264</SelectItem>
+                    <SelectItem value="h265">H.265</SelectItem>
+                    <SelectItem value="mjpeg">MJPEG</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="resolution">Resolution</Label>
+                <Select
+                  value={editCamera.resolution || "1920x1080"}
+                  onValueChange={(value) => setEditCamera(prev => ({ ...prev, resolution: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Auto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1920x1080">1920x1080</SelectItem>
+                    <SelectItem value="1280x720">1280x720</SelectItem>
+                    <SelectItem value="640x480">640x480</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="haEntity">Home Assistant Entity (Optional)</Label>
+              <Input
+                id="haEntity"
+                value={editCamera.haEntity || ''}
+                onChange={(e) => setEditCamera(prev => ({ ...prev, haEntity: e.target.value }))}
+                placeholder="camera.front_door"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button onClick={handleSaveEdit}>Save</Button>
+              <Button variant="outline" onClick={() => setIsEditCameraOpen(false)}>Cancel</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm Dialog */}
+      <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Camera</DialogTitle>
+            <DialogDescription>
+              This will delete {deletingCamera?.name} and all associated recordings ({recordings.filter(r => r.cameraId === deletingCamera?.id).length} files). This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => setIsDeleteConfirmOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmDelete}>Delete</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
