@@ -293,7 +293,16 @@ export default function Medications() {
     // First try to load existing new format data
     if (savedMedications) {
       try {
-        setMedications(JSON.parse(savedMedications));
+        const loadedMeds = JSON.parse(savedMedications);
+        // Remove duplicates by name (case insensitive), keeping the one with latest startDate
+        const uniqueMeds = Array.from(
+          new Map(
+            loadedMeds
+              .map((med: Medication) => [med.name.toLowerCase(), med])
+              .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())
+          ).values()
+        );
+        setMedications(uniqueMeds);
         dataLoaded = true;
       } catch (error) {
         console.error('Failed to load medications:', error);
