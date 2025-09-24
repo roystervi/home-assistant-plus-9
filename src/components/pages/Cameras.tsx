@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import videojs from 'video.js';
+import videojs, { type Player } from 'video.js';
 import 'video.js/dist/video-js.css';
 
 interface Camera {
@@ -119,6 +119,9 @@ export default function Cameras() {
 
   const [editCamera, setEditCamera] = useState<Partial<Camera>>({});
 
+  // Add video players ref
+  const videoPlayersRef = useRef<Record<string, Player | null>>({});
+
   // Fetch cameras from API
   useEffect(() => {
     const fetchCameras = async () => {
@@ -174,9 +177,12 @@ export default function Cameras() {
     fetchStorageUsage();
   }, []);
 
-  // Initialize video player for a camera
+  // Initialize video player - updated to use ref
   const initVideoPlayer = useCallback((cameraId: string, containerRef: React.RefObject<HTMLDivElement>) => {
-    if (videoPlayers[cameraId] || !containerRef.current) return;
+    if (videoPlayersRef.current[cameraId] || !containerRef.current) return;
+
+    // Clear existing content (e.g., React-rendered placeholder)
+    containerRef.current.innerHTML = '';
 
     const video = document.createElement('video-js');
     video.className = 'video-js';
@@ -190,41 +196,81 @@ export default function Cameras() {
       fluid: true,
       responsive: true,
       sources: [{
-        src: `/api/stream/${cameraId}`, // Proxy RTSP/RTMP to HLS via API if needed
-        type: 'application/x-mpegURL' // Assume HLS conversion
+        src: `/api/stream/${cameraId}`,
+        type: 'application/x-mpegURL'
       }],
-      plugins: {
-        // Add NVR-specific plugins if available
-      }
+      plugins: {}
     });
 
     player.ready(() => {
-      setVideoPlayers(prev => ({ ...prev, [cameraId]: player }));
-      toast.info(`Player initialized for ${cameraId}`);
+      videoPlayersRef.current[cameraId] = player;
     });
 
     player.on('error', () => {
-      toast.error(`Stream error for camera ${cameraId}`);
-      // Fallback to placeholder
-      containerRef.current!.innerHTML = `
-        <div class="aspect-video bg-muted rounded-lg flex items-center justify-center">
-          <VideoOff className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-          <p class="text-sm text-muted-foreground">Stream Unavailable</p>
-        </div>
-      `;
+      // Dispose before clearing
+      if (videoPlayersRef.current[cameraId]) {
+        videoPlayersRef.current[cameraId]?.dispose();
+        videoPlayersRef.current[cameraId] = null;
+      }
+      // Fallback
+      if (containerRef.current) {
+        containerRef.current.innerHTML = `
+          <div class="aspect-video bg-muted rounded-lg flex items-center justify-center">
+            <VideoOff className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+            <p class="text-sm text-muted-foreground">Stream Unavailable</p>
+          </div>
+        `;
+      }
     });
 
     return player;
-  }, [videoPlayers]);
+  }, []);
 
   // Cleanup players
   useEffect(() => {
     return () => {
-      Object.values(videoPlayers).forEach(player => {
-        if (player) player.dispose();
+      Object.values(videoPlayersRef.current).forEach(player => {
+        if (player && !player.isDisposed_) {
+          player.dispose();
+        }
       });
+      videoPlayersRef.current = {};
     };
-  }, [videoPlayers]);
+  }, []);
+
+  // Add effect to clean up players when cameras change
+  useEffect(() => {
+    // Dispose players for removed cameras
+    Object.keys(videoPlayersRef.current).forEach(cameraId => {
+      if (!cameras.some(c => c.id === cameraId) && videoPlayersRef.current[cameraId]) {
+        const player = videoPlayersRef.current[cameraId];
+        if (player && !player.isDisposed_) {
+          player.dispose();
+        }
+        delete videoPlayersRef.current[cameraId];
+        // Clear container if it exists
+        const container = playerRefs.current[cameraId];
+        if (container) {
+          container.innerHTML = `
+            <div class="aspect-video bg-muted rounded-lg flex items-center justify-center">
+              <VideoOff className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+              <p class="text-sm text-muted-foreground">Camera Removed</p>
+            </div>
+          `;
+        }
+      }
+    });
+  }, [cameras]);
+
+  // Add effect to initialize players after cameras load
+  useEffect(() => {
+    cameras.forEach(camera => {
+      const container = playerRefs.current[camera.id];
+      if (container && !videoPlayersRef.current[camera.id] && camera.status === 'online') {
+        initVideoPlayer(camera.id, { current: container });
+      }
+    });
+  }, [cameras, initVideoPlayer]);
 
   const handleEditCamera = async (camera: Camera) => {
     setSelectedCamera(camera);
@@ -568,11 +614,6 @@ export default function Cameras() {
         <div className="lg:col-span-2 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {cameras.map((camera) => {
-              const playerRef = playerRefs.current[camera.id] || ((container: HTMLDivElement) => {
-                playerRefs.current[camera.id] = container;
-                initVideoPlayer(camera.id, { current: container });
-              });
-
               return (
                 <Card key={camera.id} className="relative">
                   <CardHeader className="pb-3">
@@ -594,18 +635,29 @@ export default function Cameras() {
 
                   <CardContent className="space-y-4">
                     <div 
-                      ref={playerRef}
-                      className="aspect-video bg-muted rounded-lg"
+                      ref={(el) => {
+                        playerRefs.current[camera.id] = el;
+                      }}
+                      className="aspect-video bg-muted rounded-lg relative"
                       style={{ height: '200px' }}
-                    />
+                    >
+                      {/* Fallback placeholder */}
+                      {(!videoPlayersRef.current[camera.id] || camera.status !== "online") && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="text-center">
+                            {camera.status === "online" ? (
+                              <MonitorPlay className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                            ) : (
+                              <VideoOff className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                            )}
+                            <p className="text-sm text-muted-foreground">
+                              {camera.status === "online" ? "Loading stream..." : "Camera Offline"}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     
-                    {/* Fallback if no player */}
-                    {!videoPlayers[camera.id] && camera.status === "online" && (
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <MonitorPlay className="h-8 w-8 text-muted-foreground" />
-                      </div>
-                    )}
-
                     {camera.lastMotion && (
                       <div className="text-sm text-muted-foreground">
                         Last motion: {camera.lastMotion}
