@@ -86,3 +86,29 @@ export const automationActions = sqliteTable('automation_actions', {
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
+
+export const cameras = sqliteTable('cameras', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  connectionType: text('connection_type').notNull(),
+  url: text('url').notNull(),
+  username: text('username'),
+  password: text('password'),
+  status: text('status').notNull().default('connecting'),
+  format: text('format'),
+  resolution: text('resolution'),
+  haEntity: text('ha_entity'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const recordings = sqliteTable('recordings', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  cameraId: integer('camera_id').references(() => cameras.id).notNull(),
+  filename: text('filename').notNull(),
+  timestamp: text('timestamp').notNull(),
+  duration: integer('duration').default(0),
+  size: real('size').default(0.00),
+  trigger: text('trigger').notNull(),
+  createdAt: text('created_at').notNull(),
+});
