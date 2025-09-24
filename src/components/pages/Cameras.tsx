@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Camera as CameraIcon, HardDrive, LayoutList, SwitchCamera } from "lucide-react";
+import { Camera as CameraIcon, HardDrive, LayoutList, SwitchCamera, Video, VideoOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
