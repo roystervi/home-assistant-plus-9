@@ -57,6 +57,15 @@ export default function Cameras() {
       status: "online",
       format: "H.265",
       resolution: "1280x720"
+    },
+    {
+      id: "3",
+      name: "Axis Camera",
+      connectionType: "http",
+      url: "http://root:root@192.168.1.156/axis-cgi/jpg/image.cgi",
+      status: "online",
+      format: "MJPEG",
+      resolution: "1920x1080"
     }
   ]);
 
