@@ -197,23 +197,7 @@ export default function EnergyMonitor() {
     }
   }, [])
 
-  // Save billing settings to localStorage
-  const saveBillingSettings = useCallback((settings: BillingPeriodSettings) => {
-    try {
-      localStorage.setItem('billingPeriodSettings', JSON.stringify(settings))
-      setBillingSettings(settings)
-      toast.success('Billing period settings saved')
-      
-      // Recalculate current month bill with new settings
-      const currentMonth = getCurrentBillingPeriod()
-      calculateCurrentMonthBill(currentMonth)
-    } catch (error) {
-      console.error('Error saving billing settings:', error)
-      toast.error('Failed to save billing settings')
-    }
-  }, [getCurrentBillingPeriod, calculateCurrentMonthBill])
-
-  // Get current billing period based on settings
+  // Reorder: define getCurrentBillingPeriod first
   const getCurrentBillingPeriod = useCallback(() => {
     const now = new Date()
     
@@ -293,30 +277,6 @@ export default function EnergyMonitor() {
     }
   }, [billingSettings])
 
-  // Load billing history from API
-  const loadBillingHistory = useCallback(async () => {
-    setLoadingBills(true)
-    try {
-      const response = await fetch('/api/energy/bills')
-      if (response.ok) {
-        const bills = await response.json()
-        setBillingHistory(bills)
-        
-        // Load current month calculation
-        const currentMonth = getCurrentBillingPeriod()
-        await calculateCurrentMonthBill(currentMonth)
-      } else {
-        console.error('Failed to load billing history')
-        toast.error('Failed to load billing history')
-      }
-    } catch (error) {
-      console.error('Error loading billing history:', error)
-      toast.error('Error loading billing history')
-    } finally {
-      setLoadingBills(false)
-    }
-  }, [getCurrentBillingPeriod, calculateCurrentMonthBill])
-
   // Calculate current month bill from readings with custom period support
   const calculateCurrentMonthBill = useCallback(async (billingPeriod: string) => {
     try {
@@ -342,6 +302,30 @@ export default function EnergyMonitor() {
     }
   }, [billingSettings, getBillingPeriodDates])
 
+  // Load billing history from API
+  const loadBillingHistory = useCallback(async () => {
+    setLoadingBills(true)
+    try {
+      const response = await fetch('/api/energy/bills')
+      if (response.ok) {
+        const bills = await response.json()
+        setBillingHistory(bills)
+        
+        // Load current month calculation
+        const currentMonth = getCurrentBillingPeriod()
+        await calculateCurrentMonthBill(currentMonth)
+      } else {
+        console.error('Failed to load billing history')
+        toast.error('Failed to load billing history')
+      }
+    } catch (error) {
+      console.error('Error loading billing history:', error)
+      toast.error('Error loading billing history')
+    } finally {
+      setLoadingBills(false)
+    }
+  }, [getCurrentBillingPeriod, calculateCurrentMonthBill])
+
   // Save current month bill
   const saveCurrentMonthBill = useCallback(async () => {
     if (!currentMonthBill) return
@@ -352,14 +336,30 @@ export default function EnergyMonitor() {
         toast.success('Monthly bill saved successfully')
         await loadBillingHistory()
       } else {
-        const error = await response.json()
-        toast.error(error.error || 'Failed to save bill')
+        const errorData = await response.json()
+        toast.error(errorData.error || 'Failed to save bill')
       }
     } catch (error) {
       console.error('Error saving bill:', error)
       toast.error('Error saving bill')
     }
   }, [currentMonthBill, loadBillingHistory])
+
+  // Save billing settings to localStorage - now after dependencies
+  const saveBillingSettings = useCallback((settings: BillingPeriodSettings) => {
+    try {
+      localStorage.setItem('billingPeriodSettings', JSON.stringify(settings))
+      setBillingSettings(settings)
+      toast.success('Billing period settings saved')
+      
+      // Recalculate current month bill with new settings
+      const currentMonth = getCurrentBillingPeriod()
+      calculateCurrentMonthBill(currentMonth)
+    } catch (error) {
+      console.error('Error saving billing settings:', error)
+      toast.error('Failed to save billing settings')
+    }
+  }, [getCurrentBillingPeriod, calculateCurrentMonthBill])
 
   // Process energy data from Home Assistant entities
   const processEnergyData = useCallback(() => {
