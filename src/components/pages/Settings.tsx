@@ -54,8 +54,6 @@ interface ConnectionStatus {
   ha: "connected" | "disconnected" | "testing";
   weather: "configured" | "not_configured" | "testing";
   energy: "configured" | "not_configured" | "testing";
-  mqtt: "running" | "stopped" | "starting" | "stopping";
-  zwave: "connected" | "disconnected" | "connecting";
 }
 
 // Add interface for HA states
@@ -77,10 +75,6 @@ interface AppearanceSettings {
 }
 
 interface LocalServices {
-  mqttEnabled: boolean;
-  mqttPort: number;
-  zwaveEnabled: boolean;
-  zwavePort: string;
   sqlitePath: string;
   dbSize: string;
 }
@@ -137,10 +131,6 @@ export default function Settings() {
 
   // Local Services State
   const [localServices, setLocalServices] = useState<LocalServices>({
-    mqttEnabled: false,
-    mqttPort: 1883,
-    zwaveEnabled: false,
-    zwavePort: "/dev/ttyUSB0",
     sqlitePath: "./data/homeassistant.db",
     dbSize: "12.5 MB"
   });
@@ -173,8 +163,6 @@ export default function Settings() {
     ha: haUrl && haToken ? "connected" : "disconnected",
     weather: weatherApiKey ? "configured" : "not_configured",
     energy: "configured",
-    mqtt: "stopped",
-    zwave: "disconnected"
   });
 
   const [backupProgress, setBackupProgress] = useState(0);
@@ -338,40 +326,6 @@ export default function Settings() {
       toast.error("Failed to fetch Home Assistant status");
     } finally {
       setIsLoadingStates(false);
-    }
-  };
-
-  // Toggle MQTT Service
-  const toggleMqtt = async () => {
-    const newState = localServices.mqttEnabled ? "stopping" : "starting";
-    setConnectionStatus(prev => ({ ...prev, mqtt: newState }));
-    
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      const finalState = newState === "starting" ? "running" : "stopped";
-      setConnectionStatus(prev => ({ ...prev, mqtt: finalState }));
-      setLocalServices(prev => ({ ...prev, mqttEnabled: !prev.mqttEnabled }));
-      
-      toast.success(`MQTT broker ${finalState === "running" ? "started" : "stopped"}`);
-    } catch (error) {
-      toast.error("Failed to toggle MQTT broker");
-      setConnectionStatus(prev => ({ ...prev, mqtt: localServices.mqttEnabled ? "running" : "stopped" }));
-    }
-  };
-
-  // Test MQTT Publish
-  const testMqttPublish = async () => {
-    if (connectionStatus.mqtt !== "running") {
-      toast.error("MQTT broker is not running");
-      return;
-    }
-
-    try {
-      toast.info("Publishing test message...");
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast.success("MQTT test message published and received successfully");
-    } catch (error) {
-      toast.error("Failed to publish MQTT test message");
     }
   };
 
@@ -754,10 +708,6 @@ export default function Settings() {
     });
     
     setLocalServices({
-      mqttEnabled: false,
-      mqttPort: 1883,
-      zwaveEnabled: false,
-      zwavePort: "/dev/ttyUSB0",
       sqlitePath: "./data/homeassistant.db",
       dbSize: "12.5 MB"
     });
@@ -1639,78 +1589,13 @@ export default function Settings() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <PcCase className="h-5 w-5" />
-                Local Services
+                Database Management
               </CardTitle>
               <CardDescription>
-                Manage embedded MQTT broker and Z-Wave server
+                Manage your application's database and storage
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* MQTT Section */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>MQTT Broker</Label>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${getStatusColor(connectionStatus.mqtt)}`} />
-                    <span className="text-sm capitalize">{connectionStatus.mqtt}</span>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-4">
-                  <Switch
-                    checked={localServices.mqttEnabled}
-                    onCheckedChange={toggleMqtt}
-                    disabled={connectionStatus.mqtt === "starting" || connectionStatus.mqtt === "stopping"}
-                  />
-                  <div className="flex-1">
-                    <Label htmlFor="mqtt-port">Port</Label>
-                    <Input
-                      id="mqtt-port"
-                      type="number"
-                      value={localServices.mqttPort}
-                      onChange={(e) => setLocalServices(prev => ({ ...prev, mqttPort: parseInt(e.target.value) }))}
-                      className="w-24"
-                    />
-                  </div>
-                </div>
-                
-                {connectionStatus.mqtt === "running" && (
-                  <Button onClick={testMqttPublish} variant="outline" size="sm">
-                    Test MQTT Publish
-                  </Button>
-                )}
-              </div>
-
-              <Separator />
-
-              {/* Z-Wave Section */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Z-Wave Server</Label>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${getStatusColor(connectionStatus.zwave)}`} />
-                    <span className="text-sm capitalize">{connectionStatus.zwave}</span>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-4">
-                  <Switch
-                    checked={localServices.zwaveEnabled}
-                    onCheckedChange={(checked) => setLocalServices(prev => ({ ...prev, zwaveEnabled: checked }))}
-                  />
-                  <div className="flex-1">
-                    <Label htmlFor="zwave-port">Serial Port</Label>
-                    <Input
-                      id="zwave-port"
-                      value={localServices.zwavePort}
-                      onChange={(e) => setLocalServices(prev => ({ ...prev, zwavePort: e.target.value }))}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
               {/* Database Section */}
               <div className="space-y-3">
                 <Label>SQLite Database</Label>
@@ -1723,6 +1608,27 @@ export default function Settings() {
                     <span>Database size</span>
                     <Badge variant="outline">{localServices.dbSize}</Badge>
                   </div>
+                  <Button variant="outline" size="sm" className="w-full">
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Refresh Database Info
+                  </Button>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Add a simple section for database operations */}
+              <div className="space-y-3">
+                <Label>Database Operations</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Button variant="outline">
+                    <Activity className="h-4 w-4 mr-2" />
+                    Run Maintenance
+                  </Button>
+                  <Button variant="outline">
+                    <FileEdit className="h-4 w-4 mr-2" />
+                    View Schema
+                  </Button>
                 </div>
               </div>
             </CardContent>
