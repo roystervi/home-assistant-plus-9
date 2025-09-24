@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { recordings, cameras } from '@/db/schema';
+import { recordings, cameras, nvrStorageLocations } from '@/db/schema';
 import { eq, desc, and, sql } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
@@ -20,10 +20,14 @@ export async function GET(request: NextRequest) {
         duration: recordings.duration,
         size: recordings.size,
         trigger: recordings.trigger,
+        storageLocationId: recordings.storageLocationId,
+        storageLocationName: nvrStorageLocations.name,
+        storageLocationPath: nvrStorageLocations.path,
         createdAt: recordings.createdAt,
       })
       .from(recordings)
       .leftJoin(cameras, eq(recordings.cameraId, cameras.id))
+      .leftJoin(nvrStorageLocations, eq(recordings.storageLocationId, nvrStorageLocations.id))
       .orderBy(desc(recordings.createdAt));
 
     if (cameraId) {
@@ -57,7 +61,8 @@ export async function POST(request: NextRequest) {
       timestamp, 
       duration = 0, 
       size = 0.00, 
-      trigger = 'manual' 
+      trigger = 'manual',
+      storageLocationId
     } = requestBody;
 
     // Validate required fields
@@ -132,6 +137,32 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // Validate storageLocationId if provided
+    let storageLocationIdInt = null;
+    if (storageLocationId) {
+      storageLocationIdInt = parseInt(storageLocationId);
+      if (isNaN(storageLocationIdInt)) {
+        return NextResponse.json({
+          error: "Storage location ID must be a valid integer",
+          code: "INVALID_STORAGE_LOCATION_ID"
+        }, { status: 400 });
+      }
+
+      // Check if storage location exists
+      const existingStorageLocation = await db
+        .select()
+        .from(nvrStorageLocations)
+        .where(eq(nvrStorageLocations.id, storageLocationIdInt))
+        .limit(1);
+
+      if (existingStorageLocation.length === 0) {
+        return NextResponse.json({
+          error: "Storage location not found",
+          code: "STORAGE_LOCATION_NOT_FOUND"
+        }, { status: 404 });
+      }
+    }
+
     // Check if camera exists
     const existingCamera = await db
       .select()
@@ -156,6 +187,7 @@ export async function POST(request: NextRequest) {
         duration: duration,
         size: size,
         trigger: trigger,
+        storageLocationId: storageLocationIdInt,
         createdAt: new Date().toISOString(),
       })
       .returning();
@@ -163,6 +195,150 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(newRecording[0], { status: 201 });
   } catch (error) {
     console.error('POST error:', error);
+    return NextResponse.json({ 
+      error: 'Internal server error: ' + error 
+    }, { status: 500 });
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id || isNaN(parseInt(id))) {
+      return NextResponse.json({
+        error: "Valid ID is required",
+        code: "INVALID_ID"
+      }, { status: 400 });
+    }
+
+    const requestBody = await request.json();
+    const { 
+      cameraId, 
+      filename, 
+      timestamp, 
+      duration, 
+      size, 
+      trigger,
+      storageLocationId
+    } = requestBody;
+
+    // Check if recording exists
+    const existingRecording = await db
+      .select()
+      .from(recordings)
+      .where(eq(recordings.id, parseInt(id)))
+      .limit(1);
+
+    if (existingRecording.length === 0) {
+      return NextResponse.json({
+        error: "Recording not found",
+        code: "RECORDING_NOT_FOUND"
+      }, { status: 404 });
+    }
+
+    // Validate cameraId if provided
+    if (cameraId !== undefined) {
+      const cameraIdInt = parseInt(cameraId);
+      if (isNaN(cameraIdInt)) {
+        return NextResponse.json({
+          error: "Camera ID must be a valid integer",
+          code: "INVALID_CAMERA_ID"
+        }, { status: 400 });
+      }
+
+      const existingCamera = await db
+        .select()
+        .from(cameras)
+        .where(eq(cameras.id, cameraIdInt))
+        .limit(1);
+
+      if (existingCamera.length === 0) {
+        return NextResponse.json({
+          error: "Camera not found",
+          code: "CAMERA_NOT_FOUND"
+        }, { status: 404 });
+      }
+    }
+
+    // Validate storageLocationId if provided
+    if (storageLocationId !== undefined) {
+      if (storageLocationId !== null) {
+        const storageLocationIdInt = parseInt(storageLocationId);
+        if (isNaN(storageLocationIdInt)) {
+          return NextResponse.json({
+            error: "Storage location ID must be a valid integer",
+            code: "INVALID_STORAGE_LOCATION_ID"
+          }, { status: 400 });
+        }
+
+        const existingStorageLocation = await db
+          .select()
+          .from(nvrStorageLocations)
+          .where(eq(nvrStorageLocations.id, storageLocationIdInt))
+          .limit(1);
+
+        if (existingStorageLocation.length === 0) {
+          return NextResponse.json({
+            error: "Storage location not found",
+            code: "STORAGE_LOCATION_NOT_FOUND"
+          }, { status: 404 });
+        }
+      }
+    }
+
+    // Validate other fields if provided
+    if (filename !== undefined && (!filename || typeof filename !== 'string' || filename.trim().length === 0)) {
+      return NextResponse.json({
+        error: "Filename must be a non-empty string",
+        code: "INVALID_FILENAME"
+      }, { status: 400 });
+    }
+
+    if (timestamp !== undefined && (!timestamp || isNaN(new Date(timestamp).getTime()))) {
+      return NextResponse.json({
+        error: "Timestamp must be a valid ISO datetime string",
+        code: "INVALID_TIMESTAMP"
+      }, { status: 400 });
+    }
+
+    if (trigger !== undefined && !['motion', 'schedule', 'manual'].includes(trigger)) {
+      return NextResponse.json({
+        error: "Trigger must be one of: motion, schedule, manual",
+        code: "INVALID_TRIGGER"
+      }, { status: 400 });
+    }
+
+    // Build update object with only provided fields
+    const updateData: any = {};
+
+    if (cameraId !== undefined) updateData.cameraId = parseInt(cameraId);
+    if (filename !== undefined) updateData.filename = filename.trim();
+    if (timestamp !== undefined) updateData.timestamp = timestamp;
+    if (duration !== undefined) updateData.duration = duration;
+    if (size !== undefined) updateData.size = size;
+    if (trigger !== undefined) updateData.trigger = trigger;
+    if (storageLocationId !== undefined) {
+      updateData.storageLocationId = storageLocationId ? parseInt(storageLocationId) : null;
+    }
+
+    const updated = await db
+      .update(recordings)
+      .set(updateData)
+      .where(eq(recordings.id, parseInt(id)))
+      .returning();
+
+    if (updated.length === 0) {
+      return NextResponse.json({
+        error: "Recording not found",
+        code: "RECORDING_NOT_FOUND"
+      }, { status: 404 });
+    }
+
+    return NextResponse.json(updated[0], { status: 200 });
+  } catch (error) {
+    console.error('PUT error:', error);
     return NextResponse.json({ 
       error: 'Internal server error: ' + error 
     }, { status: 500 });

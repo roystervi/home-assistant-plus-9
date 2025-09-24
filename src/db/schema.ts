@@ -38,7 +38,7 @@ export const automations = sqliteTable('automations', {
   name: text('name').notNull(),
   description: text('description'),
   enabled: integer('enabled', { mode: 'boolean' }).default(true),
-  source: text('source').notNull().default('local'), // 'local' | 'ha'
+  source: text('source').notNull().default('local'),
   tags: text('tags', { mode: 'json' }),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
@@ -48,7 +48,7 @@ export const automations = sqliteTable('automations', {
 export const automationTriggers = sqliteTable('automation_triggers', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   automationId: integer('automation_id').references(() => automations.id),
-  type: text('type').notNull(), // 'entity_state' | 'time' | 'sunrise_sunset' | 'mqtt' | 'zwave'
+  type: text('type').notNull(),
   entityId: text('entity_id'),
   attribute: text('attribute'),
   state: text('state'),
@@ -63,12 +63,12 @@ export const automationTriggers = sqliteTable('automation_triggers', {
 export const automationConditions = sqliteTable('automation_conditions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   automationId: integer('automation_id').references(() => automations.id),
-  type: text('type').notNull(), // 'entity_state' | 'numeric' | 'time'
+  type: text('type').notNull(),
   entityId: text('entity_id'),
   attribute: text('attribute'),
-  operator: text('operator').notNull(), // 'equals' | 'not_equals' | 'greater' | 'less' | 'greater_equal' | 'less_equal'
+  operator: text('operator').notNull(),
   value: text('value').notNull(),
-  logicalOperator: text('logical_operator').default('and'), // 'and' | 'or'
+  logicalOperator: text('logical_operator').default('and'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -76,7 +76,7 @@ export const automationConditions = sqliteTable('automation_conditions', {
 export const automationActions = sqliteTable('automation_actions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   automationId: integer('automation_id').references(() => automations.id),
-  type: text('type').notNull(), // 'service_call' | 'mqtt' | 'scene' | 'local_device'
+  type: text('type').notNull(),
   service: text('service'),
   entityId: text('entity_id'),
   data: text('data', { mode: 'json' }),
@@ -102,6 +102,18 @@ export const cameras = sqliteTable('cameras', {
   updatedAt: text('updated_at').notNull(),
 });
 
+export const nvrStorageLocations = sqliteTable('nvr_storage_locations', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull().unique(),
+  path: text('path').notNull().unique(),
+  type: text('type').notNull(),
+  capacityGb: integer('capacity_gb').notNull().default(0),
+  usedGb: integer('used_gb').notNull().default(0),
+  enabled: integer('enabled', { mode: 'boolean' }).default(true),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
 export const recordings = sqliteTable('recordings', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   cameraId: integer('camera_id').references(() => cameras.id).notNull(),
@@ -110,5 +122,6 @@ export const recordings = sqliteTable('recordings', {
   duration: integer('duration').default(0),
   size: real('size').default(0.00),
   trigger: text('trigger').notNull(),
+  storageLocationId: integer('storage_location_id').references(() => nvrStorageLocations.id),
   createdAt: text('created_at').notNull(),
 });

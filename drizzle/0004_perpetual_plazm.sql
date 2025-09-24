@@ -1,0 +1,1 @@
+ALTER TABLE `recordings` ADD `storage_location_id` integer REFERENCES nvr_storage_locations(id);
