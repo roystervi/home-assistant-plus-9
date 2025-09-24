@@ -50,44 +50,88 @@ export default function CameraCard({
   onFullView,
 }: CameraCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mock stream source (static image loop for demo since no real backend)
-  const streamSrc = camera.status === "online" 
-    ? `/api/stream/${camera.id}` // Will 404 in demo, handled by error state
-    : '';
+  // Use direct camera URL for HTTP/MJPEG, mock for others
+  const streamSrc = camera.connectionType === "http" 
+    ? camera.url  // Direct MJPEG URL with auth
+    : `/api/stream/${camera.id}`; // Mock for RTSP/etc.
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+    setHasError(false);
+    setIsLoading(true);
 
-    const handleError = () => {
-      setHasError(true);
-    };
-
-    const handleLoadStart = () => {
-      setHasError(false);
-    };
-
-    video.addEventListener('error', handleError);
-    video.addEventListener('loadstart', handleLoadStart);
-
-    // For demo, if no real stream, show placeholder after timeout
-    if (camera.status === "online") {
-      const timeout = setTimeout(() => {
-        if (video.networkState === 0 || video.readyState === 0) { // No data
+    if (camera.connectionType === "http" && imgRef.current) {
+      const img = imgRef.current;
+      img.onload = () => {
+        setIsLoading(false);
+        setHasError(false);
+      };
+      img.onerror = () => {
+        setHasError(true);
+        setIsLoading(false);
+      };
+      // Trigger load
+      img.src = streamSrc;
+    } else {
+      const video = videoRef.current;
+      if (video) {
+        const handleError = () => {
           setHasError(true);
+          setIsLoading(false);
+        };
+
+        const handleLoadStart = () => {
+          setIsLoading(true);
+          setHasError(false);
+        };
+
+        const handleCanPlay = () => {
+          setIsLoading(false);
+        };
+
+        video.addEventListener('error', handleError);
+        video.addEventListener('loadstart', handleLoadStart);
+        video.addEventListener('canplay', handleCanPlay);
+
+        // For non-HTTP, simulate if no real stream
+        if (camera.status === "online") {
+          const timeout = setTimeout(() => {
+            if (video.networkState === 0 || video.readyState === 0) {
+              setHasError(true);
+              setIsLoading(false);
+            }
+          }, 3000);
+
+          return () => {
+            clearTimeout(timeout);
+            video.removeEventListener('error', handleError);
+            video.removeEventListener('loadstart', handleLoadStart);
+            video.removeEventListener('canplay', handleCanPlay);
+          };
         }
-      }, 3000);
 
-      return () => clearTimeout(timeout);
+        return () => {
+          video.removeEventListener('error', handleError);
+          video.removeEventListener('loadstart', handleLoadStart);
+          video.removeEventListener('canplay', handleCanPlay);
+        };
+      }
     }
+  }, [camera.connectionType, camera.url, camera.status, camera.id, streamSrc]);
 
-    return () => {
-      video.removeEventListener('error', handleError);
-      video.removeEventListener('loadstart', handleLoadStart);
-    };
-  }, [camera.status, camera.id]);
+  const handleRetry = () => {
+    setHasError(false);
+    setIsLoading(true);
+    // Re-trigger src
+    if (camera.connectionType === "http" && imgRef.current) {
+      imgRef.current.src = streamSrc + '?t=' + Date.now();
+    } else if (videoRef.current) {
+      videoRef.current.load();
+    }
+  };
 
   const handleSnapshotClick = () => onSnapshot(camera);
   const handleRecordClick = () => onRecord(camera);
@@ -96,7 +140,7 @@ export default function CameraCard({
   const handleDeleteClick = () => onDelete(camera);
   const handleFullViewClick = () => onFullView(camera);
 
-  const showOverlay = camera.status !== "online" || hasError;
+  const showOverlay = (camera.status !== "online" && !isLoading) || hasError;
 
   return (
     <Card className="relative overflow-hidden">
@@ -117,43 +161,55 @@ export default function CameraCard({
 
       <CardContent className="space-y-4 p-4 relative">
         <div className="relative aspect-video bg-muted rounded-md overflow-hidden" style={{ height: "200px", minHeight: "200px" }}>
-          <video
-            ref={videoRef}
-            src={streamSrc}
-            className="w-full h-full object-cover rounded-md"
-            autoPlay
-            muted
-            loop
-            playsInline
-            controls={false}
-          />
-          {showOverlay && (
+          {camera.connectionType === "http" ? (
+            <img
+              ref={imgRef}
+              src={streamSrc}
+              alt={`${camera.name} live stream`}
+              className={`w-full h-full object-cover rounded-md transition-opacity ${isLoading || hasError ? 'opacity-0' : 'opacity-100'}`}
+            />
+          ) : (
+            <video
+              ref={videoRef}
+              src={streamSrc}
+              className={`w-full h-full object-cover rounded-md transition-opacity ${isLoading || hasError ? 'opacity-0' : 'opacity-100'}`}
+              autoPlay
+              muted
+              loop
+              playsInline
+              controls={false}
+            />
+          )}
+          {(isLoading || showOverlay) && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-md z-10">
               <div className="text-center p-4">
                 {hasError ? (
                   <>
                     <VideoOff className="h-8 w-8 mx-auto mb-2 text-destructive" />
-                    <p className="text-sm text-destructive">Stream Error</p>
+                    <p className="text-sm text-destructive">Stream Error (check auth/network)</p>
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      onClick={() => setHasError(false)} 
+                      onClick={handleRetry} 
                       className="mt-2"
                     >
                       Retry
                     </Button>
                   </>
-                ) : camera.status === "online" ? (
+                ) : isLoading ? (
                   <>
                     <MonitorPlay className="h-8 w-8 mx-auto mb-2 text-muted-foreground animate-pulse" />
                     <p className="text-sm text-muted-foreground">Loading stream...</p>
                   </>
+                ) : camera.status === "connecting" ? (
+                  <>
+                    <VideoOff className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Connecting...</p>
+                  </>
                 ) : (
                   <>
                     <VideoOff className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
-                      {camera.status === "connecting" ? "Connecting..." : "Offline"}
-                    </p>
+                    <p className="text-sm text-muted-foreground">Offline</p>
                   </>
                 )}
               </div>
@@ -173,7 +229,7 @@ export default function CameraCard({
               variant="outline"
               size="sm"
               onClick={handleSnapshotClick}
-              disabled={camera.status !== "online"}
+              disabled={camera.status !== "online" || hasError}
               className="h-8 px-2"
             >
               <Camera className="h-3 w-3 mr-1" />
@@ -183,7 +239,7 @@ export default function CameraCard({
               variant="outline"
               size="sm"
               onClick={handleRecordClick}
-              disabled={camera.status !== "online"}
+              disabled={camera.status !== "online" || hasError}
               className="h-8 px-2"
             >
               <Video className="h-3 w-3 mr-1" />
@@ -193,6 +249,7 @@ export default function CameraCard({
               variant="outline"
               size="sm"
               onClick={handleTestClick}
+              disabled={hasError}
               className="h-8 px-2"
             >
               Test
@@ -218,7 +275,7 @@ export default function CameraCard({
             variant="outline"
             size="sm"
             onClick={handleFullViewClick}
-            disabled={camera.status !== "online"}
+            disabled={camera.status !== "online" || hasError}
             className="h-8 px-3"
           >
             <SwitchCamera className="h-3 w-3 mr-1" />
