@@ -6,8 +6,6 @@ import { Camera, Video, VideoOff, Cctv, MonitorPlay, SwitchCamera } from "lucide
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import videojs, { type Player } from 'video.js';
-import 'video.js/dist/video-js.css';
 
 export interface Camera {
   id: string;
@@ -51,71 +49,45 @@ export default function CameraCard({
   onTest,
   onFullView,
 }: CameraCardProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<Player | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [hasError, setHasError] = useState(false);
 
-  const disposePlayer = useCallback(() => {
-    if (playerRef.current && !playerRef.current.isDisposed()) {
-      try {
-        playerRef.current.dispose();
-      } catch (error) {
-        console.warn('Error disposing player:', error);
-      }
-    }
-    playerRef.current = null;
-    setHasError(false);
-  }, []);
+  // Mock stream source (static image loop for demo since no real backend)
+  const streamSrc = camera.status === "online" 
+    ? `/api/stream/${camera.id}` // Will 404 in demo, handled by error state
+    : '';
 
   useEffect(() => {
-    disposePlayer();
+    const video = videoRef.current;
+    if (!video) return;
 
-    if (camera.status !== "online") {
-      return;
-    }
-
-    if (!containerRef.current) return;
-
-    // Clear only if no React children
-    if (containerRef.current.children.length === 0) {
-      containerRef.current.innerHTML = "";
-    }
-
-    const video = document.createElement("video-js");
-    video.className = "video-js vjs-big-play-centered";
-    video.setAttribute("controls", "");
-    video.setAttribute("preload", "auto");
-    containerRef.current.appendChild(video);
-
-    const player = videojs(video, {
-      fluid: true,
-      responsive: true,
-      aspectRatio: "16:9",
-      sources: [{
-        src: `/api/stream/${camera.id}`,
-        type: "application/x-mpegURL",
-      }],
-      html5: {
-        vhs: {
-          overrideNative: !window.MediaSource,
-          withCredentials: false,
-        },
-      },
-    });
-
-    player.ready(() => {
-      playerRef.current = player;
-    });
-
-    player.on('error', () => {
+    const handleError = () => {
       setHasError(true);
-      disposePlayer();
-    });
+    };
+
+    const handleLoadStart = () => {
+      setHasError(false);
+    };
+
+    video.addEventListener('error', handleError);
+    video.addEventListener('loadstart', handleLoadStart);
+
+    // For demo, if no real stream, show placeholder after timeout
+    if (camera.status === "online") {
+      const timeout = setTimeout(() => {
+        if (video.networkState === 0 || video.readyState === 0) { // No data
+          setHasError(true);
+        }
+      }, 3000);
+
+      return () => clearTimeout(timeout);
+    }
 
     return () => {
-      disposePlayer();
+      video.removeEventListener('error', handleError);
+      video.removeEventListener('loadstart', handleLoadStart);
     };
-  }, [camera.status, camera.id, disposePlayer]);
+  }, [camera.status, camera.id]);
 
   const handleSnapshotClick = () => onSnapshot(camera);
   const handleRecordClick = () => onRecord(camera);
@@ -144,43 +116,50 @@ export default function CameraCard({
       </CardHeader>
 
       <CardContent className="space-y-4 p-4 relative">
-        <div
-          ref={containerRef}
-          className="relative aspect-video bg-muted rounded-md overflow-hidden"
-          style={{ height: "200px", minHeight: "200px" }}
-        />
-        {showOverlay && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-md z-10">
-            <div className="text-center p-4">
-              {hasError ? (
-                <>
-                  <VideoOff className="h-8 w-8 mx-auto mb-2 text-destructive" />
-                  <p className="text-sm text-destructive">Stream Error</p>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setHasError(false)} 
-                    className="mt-2"
-                  >
-                    Retry
-                  </Button>
-                </>
-              ) : camera.status === "online" ? (
-                <>
-                  <MonitorPlay className="h-8 w-8 mx-auto mb-2 text-muted-foreground animate-pulse" />
-                  <p className="text-sm text-muted-foreground">Loading stream...</p>
-                </>
-              ) : (
-                <>
-                  <VideoOff className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    {camera.status === "connecting" ? "Connecting..." : "Offline"}
-                  </p>
-                </>
-              )}
+        <div className="relative aspect-video bg-muted rounded-md overflow-hidden" style={{ height: "200px", minHeight: "200px" }}>
+          <video
+            ref={videoRef}
+            src={streamSrc}
+            className="w-full h-full object-cover rounded-md"
+            autoPlay
+            muted
+            loop
+            playsInline
+            controls={false}
+          />
+          {showOverlay && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-md z-10">
+              <div className="text-center p-4">
+                {hasError ? (
+                  <>
+                    <VideoOff className="h-8 w-8 mx-auto mb-2 text-destructive" />
+                    <p className="text-sm text-destructive">Stream Error</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setHasError(false)} 
+                      className="mt-2"
+                    >
+                      Retry
+                    </Button>
+                  </>
+                ) : camera.status === "online" ? (
+                  <>
+                    <MonitorPlay className="h-8 w-8 mx-auto mb-2 text-muted-foreground animate-pulse" />
+                    <p className="text-sm text-muted-foreground">Loading stream...</p>
+                  </>
+                ) : (
+                  <>
+                    <VideoOff className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      {camera.status === "connecting" ? "Connecting..." : "Offline"}
+                    </p>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {camera.lastMotion && (
           <p className="text-xs text-muted-foreground">

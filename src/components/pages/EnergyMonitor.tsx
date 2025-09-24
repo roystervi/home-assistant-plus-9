@@ -184,74 +184,6 @@ export default function EnergyMonitor() {
   const [lastSync, setLastSync] = useState<Date | null>(null)
   const [syncingData, setSyncingData] = useState(false)
 
-  // Process energy data from Home Assistant entities
-  const processEnergyData = useCallback(() => {
-    if (!entities || Object.keys(entities).length === 0) return;
-
-    // Main energy entities (primary meters)
-    const mainEntities = [
-      'sensor.bobby_s_energy_this_month',
-      'sensor.bobby_s_energy_today', 
-      'sensor.bobby_s_power_minute_average'
-    ];
-
-    // Device energy entities (individual devices)
-    const deviceEntities = Object.keys(DEVICE_ICONS);
-
-    const processedMainData: EnergyDevice[] = [];
-    const processedDeviceData: EnergyDevice[] = [];
-
-    // Process main energy entities
-    mainEntities.forEach(entityId => {
-      const entity = entities[entityId];
-      if (entity && entity.state !== 'unavailable') {
-        processedMainData.push({
-          entity_id: entityId,
-          name: entity.attributes?.friendly_name || entityId,
-          state: parseFloat(entity.state) || 0,
-          unit: entity.attributes?.unit_of_measurement || 'kWh',
-          lastUpdated: entity.last_changed || new Date().toISOString()
-        });
-      }
-    });
-
-    // Process device energy entities
-    deviceEntities.forEach(entityId => {
-      const entity = entities[entityId];
-      if (entity && entity.state !== 'unavailable') {
-        processedDeviceData.push({
-          entity_id: entityId,
-          name: entity.attributes?.friendly_name || entityId,
-          state: parseFloat(entity.state) || 0,
-          unit: entity.attributes?.unit_of_measurement || 'kWh',
-          lastUpdated: entity.last_changed || new Date().toISOString()
-        });
-      }
-    });
-
-    // Calculate total consumption from monthly data
-    const monthlyEntity = processedMainData.find(d => d.entity_id === 'sensor.bobby_s_energy_this_month');
-    const totalKwh = monthlyEntity ? monthlyEntity.state : 0;
-
-    setMainEnergyData(processedMainData);
-    setDeviceEnergyData(processedDeviceData);
-    setTotalConsumption(totalKwh);
-  }, [entities]);
-
-  // Initialize connection on component mount
-  useEffect(() => {
-    loadBillingHistory()
-    loadBillingSettings()
-  }, [loadBillingHistory, loadBillingSettings])
-
-  // Process HA data when entities change
-  useEffect(() => {
-    if (entities && Object.keys(entities).length > 0) {
-      processEnergyData();
-      setLastSync(new Date());
-    }
-  }, [entities, processEnergyData])
-
   // Load billing settings from localStorage
   const loadBillingSettings = useCallback(() => {
     try {
@@ -429,6 +361,60 @@ export default function EnergyMonitor() {
     }
   }, [currentMonthBill, loadBillingHistory])
 
+  // Process energy data from Home Assistant entities
+  const processEnergyData = useCallback(() => {
+    if (!entities || Object.keys(entities).length === 0) return;
+
+    // Main energy entities (primary meters)
+    const mainEntities = [
+      'sensor.bobby_s_energy_this_month',
+      'sensor.bobby_s_energy_today', 
+      'sensor.bobby_s_power_minute_average'
+    ];
+
+    // Device energy entities (individual devices)
+    const deviceEntities = Object.keys(DEVICE_ICONS);
+
+    const processedMainData: EnergyDevice[] = [];
+    const processedDeviceData: EnergyDevice[] = [];
+
+    // Process main energy entities
+    mainEntities.forEach(entityId => {
+      const entity = entities[entityId];
+      if (entity && entity.state !== 'unavailable') {
+        processedMainData.push({
+          entity_id: entityId,
+          name: entity.attributes?.friendly_name || entityId,
+          state: parseFloat(entity.state) || 0,
+          unit: entity.attributes?.unit_of_measurement || 'kWh',
+          lastUpdated: entity.last_changed || new Date().toISOString()
+        });
+      }
+    });
+
+    // Process device energy entities
+    deviceEntities.forEach(entityId => {
+      const entity = entities[entityId];
+      if (entity && entity.state !== 'unavailable') {
+        processedDeviceData.push({
+          entity_id: entityId,
+          name: entity.attributes?.friendly_name || entityId,
+          state: parseFloat(entity.state) || 0,
+          unit: entity.attributes?.unit_of_measurement || 'kWh',
+          lastUpdated: entity.last_changed || new Date().toISOString()
+        });
+      }
+    });
+
+    // Calculate total consumption from monthly data
+    const monthlyEntity = processedMainData.find(d => d.entity_id === 'sensor.bobby_s_energy_this_month');
+    const totalKwh = monthlyEntity ? monthlyEntity.state : 0;
+
+    setMainEnergyData(processedMainData);
+    setDeviceEnergyData(processedDeviceData);
+    setTotalConsumption(totalKwh);
+  }, [entities])
+
   // Calculate summary from real Home Assistant data
   const calculateSummary = useCallback(() => {
     try {
@@ -564,8 +550,22 @@ export default function EnergyMonitor() {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
   }
 
+  // Process HA data when entities change
+  useEffect(() => {
+    if (entities && Object.keys(entities).length > 0) {
+      processEnergyData();
+      setLastSync(new Date());
+    }
+  }, [entities, processEnergyData])
+
   const statusDisplay = getConnectionStatusDisplay()
   const StatusIcon = statusDisplay.icon
+
+  // Initialize connection on component mount (after all useCallbacks defined)
+  useEffect(() => {
+    loadBillingHistory()
+    loadBillingSettings()
+  }, [loadBillingHistory, loadBillingSettings])
 
   return (
     <div className="space-y-6">
