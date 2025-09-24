@@ -62,15 +62,11 @@ interface DatabaseInfo {
 
 export default function System() {
   const [services, setServices] = useState<ServiceStatus[]>([
-    { name: 'MQTT Broker', status: 'running', port: 1883, lastSuccess: '2 minutes ago' },
-    { name: 'Z-Wave Server', status: 'running', port: 8091, lastSuccess: '1 minute ago' },
     { name: 'SQLite DB', status: 'running', info: '45.2 MB', lastSuccess: 'Now' },
     { name: 'HA Connection', status: 'running', lastSuccess: '30 seconds ago' }
   ]);
 
   const [logs, setLogs] = useState<LogEntry[]>([
-    { timestamp: '2024-01-15 14:30:22', level: 'info', service: 'MQTT', message: 'Broker started on port 1883' },
-    { timestamp: '2024-01-15 14:29:45', level: 'info', service: 'Z-Wave', message: 'Node 12 battery level: 85%' },
     { timestamp: '2024-01-15 14:28:12', level: 'warn', service: 'HA', message: 'Connection timeout, retrying...' },
     { timestamp: '2024-01-15 14:27:33', level: 'info', service: 'SQLite', message: 'Database vacuum completed' }
   ]);
@@ -88,9 +84,6 @@ export default function System() {
   });
 
   const [logFilter, setLogFilter] = useState<string>('all');
-  const [mqttTopic, setMqttTopic] = useState('');
-  const [mqttMessage, setMqttMessage] = useState('');
-  const [mqttMessages, setMqttMessages] = useState<string[]>([]);
   const [isHealthChecking, setIsHealthChecking] = useState(false);
   const [expandedServices, setExpandedServices] = useState<string[]>([]);
 
@@ -126,18 +119,6 @@ export default function System() {
     }, 1000);
   }, []);
 
-  const publishMqttMessage = useCallback(() => {
-    if (!mqttTopic || !mqttMessage) {
-      toast.error('Please enter both topic and message');
-      return;
-    }
-
-    const newMessage = `Published to ${mqttTopic}: ${mqttMessage}`;
-    setMqttMessages(prev => [newMessage, ...prev.slice(0, 9)]);
-    setMqttMessage('');
-    toast.success('Message published');
-  }, [mqttTopic, mqttMessage]);
-
   const runHealthCheck = useCallback(async () => {
     setIsHealthChecking(true);
     
@@ -145,8 +126,6 @@ export default function System() {
     
     const healthResults = [
       '✓ Home Assistant: Connected (192.168.1.100:8123)',
-      '✓ MQTT Broker: Running on port 1883',
-      '✓ Z-Wave Server: 3 nodes online',
       '⚠ Database: Consider vacuum (45.2 MB)',
       '✓ OpenWeatherMap API: Responding'
     ];
@@ -348,8 +327,6 @@ export default function System() {
                     <SelectItem value="error">Errors</SelectItem>
                     <SelectItem value="warn">Warnings</SelectItem>
                     <SelectItem value="info">Info</SelectItem>
-                    <SelectItem value="mqtt">MQTT</SelectItem>
-                    <SelectItem value="z-wave">Z-Wave</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button
@@ -442,107 +419,6 @@ export default function System() {
                 </div>
               </ScrollArea>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* MQTT Tester and Z-Wave Browser */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* MQTT Tester */}
-        <Card className="bg-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CloudCheck className="h-5 w-5" />
-              MQTT Tester
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="mqtt-topic">Topic</Label>
-              <Input
-                id="mqtt-topic"
-                value={mqttTopic}
-                onChange={(e) => setMqttTopic(e.target.value)}
-                placeholder="home/sensors/temperature"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="mqtt-message">Message</Label>
-              <Textarea
-                id="mqtt-message"
-                value={mqttMessage}
-                onChange={(e) => setMqttMessage(e.target.value)}
-                placeholder='{"temperature": 23.5, "humidity": 45}'
-                rows={3}
-              />
-            </div>
-            <Button onClick={publishMqttMessage} className="w-full">
-              Publish Message
-            </Button>
-            
-            {mqttMessages.length > 0 && (
-              <>
-                <Separator />
-                <div>
-                  <Label className="text-xs">Recent Messages</Label>
-                  <ScrollArea className="h-32 mt-1">
-                    <div className="space-y-1">
-                      {mqttMessages.map((msg, index) => (
-                        <div key={index} className="text-xs p-2 rounded bg-muted/50 font-mono">
-                          {msg}
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Z-Wave Browser */}
-        <Card className="bg-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <PanelRight className="h-5 w-5" />
-              Z-Wave Nodes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-64">
-              <div className="space-y-2">
-                {zwaveNodes.map((node) => (
-                  <div key={node.id} className="p-3 rounded border bg-muted/30">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-sm">{node.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Node {node.id} • {node.manufacturer}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant={node.status === 'online' ? 'default' : 'secondary'}>
-                          {node.status}
-                        </Badge>
-                        {node.battery && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Battery: {node.battery}%
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs text-muted-foreground">
-                        Last seen: {node.lastSeen}
-                      </span>
-                      <Button size="sm" variant="outline">
-                        Send Test
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
           </CardContent>
         </Card>
       </div>
