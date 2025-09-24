@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { Toaster } from '@/components/ui/sonner'
 import { HomeAssistantProvider } from '@/contexts/HomeAssistantContext'
+import { ThermostatProvider } from '@/contexts/ThermostatContext'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -20,7 +21,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <HomeAssistantProvider>
-          {children}
+          <ThermostatProvider>
+            {children}
+          </ThermostatProvider>
         </HomeAssistantProvider>
         <Toaster />
       </body>
