@@ -102,6 +102,7 @@ interface WeatherLocation {
   lon: number;
   city: string;
   country: string;
+  zip?: string;  // For ZIP code lookup
   locationKey?: string;  // For AccuWeather
 }
 
@@ -116,7 +117,7 @@ export default function Settings() {
   const [weatherApiKey, setWeatherApiKey] = useState(() => weatherApiSettings.getSetting("apiKey"));
   const [weatherLocation, setWeatherLocation] = useState(() => {
     const stored = weatherApiSettings.getSetting("location");
-    return stored || { lat: 0, lon: 0, city: "", country: "", locationKey: "" };
+    return stored || { lat: 0, lon: 0, city: "", country: "", zip: "", locationKey: "" };
   });
   const [weatherUnits, setWeatherUnits] = useState(() => weatherApiSettings.getSetting("units"));
 
@@ -1035,10 +1036,11 @@ export default function Settings() {
       </Card>
 
       <Tabs defaultValue="connections" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="connections">Home Assistant</TabsTrigger>
           <TabsTrigger value="weather">Weather API</TabsTrigger>
           <TabsTrigger value="energy">Energy API</TabsTrigger>
+          <TabsTrigger value="location">Zip Code</TabsTrigger>
           <TabsTrigger value="services">Local Services</TabsTrigger>
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
           <TabsTrigger value="backup">Data & Backup</TabsTrigger>
@@ -1376,6 +1378,161 @@ export default function Settings() {
                   </>
                 )}
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Zip Code Location Tab */}
+        <TabsContent value="location" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <MapPin className="h-5 w-5" />
+                    Zip Code Location
+                  </CardTitle>
+                  <CardDescription>
+                    Enter your zip code to automatically detect location coordinates for weather and other location-based services
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="zip-code">Zip Code</Label>
+                  <Input
+                    id="zip-code"
+                    placeholder="Enter 5-digit zip code (e.g., 90210)"
+                    maxLength={5}
+                    pattern="[0-9]{5}"
+                    value={weatherLocation.zip || ''}
+                    onChange={(e) => setWeatherLocation(prev => ({ ...prev, zip: e.target.value }))}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    onClick={async () => {
+                      if (!weatherLocation.zip || weatherLocation.zip.length !== 5 || !weatherApiKey || weatherProvider === "ha_integration") {
+                        toast.error("Please enter a valid 5-digit ZIP code and ensure a weather API key is configured (not HA integration)");
+                        return;
+                      }
+
+                      try {
+                        toast.loading("Looking up location...");
+                        let lookupUrl = "";
+                        let country = "US"; // Default to US
+
+                        switch (weatherProvider) {
+                          case "openweathermap":
+                            lookupUrl = `https://api.openweathermap.org/geo/1.0/zip?zip=${weatherLocation.zip},${country}&appid=${weatherApiKey}`;
+                            break;
+                          case "weatherapi":
+                            lookupUrl = `https://api.weatherapi.com/v1/search.json?key=${weatherApiKey}&q=${weatherLocation.zip}`;
+                            break;
+                          case "accuweather":
+                            lookupUrl = `https://dataservice.accuweather.com/locations/v1/cities/search?apikey=${weatherApiKey}&q=${weatherLocation.zip}`;
+                            break;
+                          default:
+                            throw new Error("Provider does not support ZIP lookup");
+                        }
+
+                        const response = await fetch(lookupUrl);
+                        if (!response.ok) throw new Error(`Lookup failed: HTTP ${response.status}`);
+
+                        const data = await response.json();
+
+                        let lat: number, lon: number, city: string, countryCode: string, locationKey?: string;
+
+                        switch (weatherProvider) {
+                          case "openweathermap":
+                            if (!data.lat || !data.lon) throw new Error("Invalid ZIP code or location not found");
+                            lat = data.lat;
+                            lon = data.lon;
+                            city = data.name;
+                            countryCode = data.country;
+                            break;
+                          case "weatherapi":
+                            if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid ZIP code or location not found");
+                            const firstResult = data[0];
+                            lat = firstResult.lat;
+                            lon = firstResult.lon;
+                            city = firstResult.name;
+                            countryCode = firstResult.country;
+                            break;
+                          case "accuweather":
+                            if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid ZIP code or location not found");
+                            const accuResult = data[0];
+                            lat = accuResult.GeoPosition.Latitude;
+                            lon = accuResult.GeoPosition.Longitude;
+                            city = accuResult.LocalizedName;
+                            countryCode = accuResult.Country.LocalizedName;
+                            locationKey = accuResult.Key;
+                            break;
+                        }
+
+                        const newLocation = { 
+                          lat, 
+                          lon, 
+                          city, 
+                          country: countryCode, 
+                          locationKey,
+                          zip: weatherLocation.zip // Preserve zip
+                        };
+
+                        setWeatherLocation(newLocation);
+                        weatherApiSettings.setSetting("location", newLocation);
+
+                        toast.success(`Location set: ${city}, ${countryCode} (${lat.toFixed(4)}, ${lon.toFixed(4)})`);
+
+                        // Auto-test weather API after successful lookup
+                        setTimeout(() => testWeatherApi(), 1000);
+                      } catch (error: any) {
+                        toast.error(`ZIP lookup failed: ${error.message}`);
+                      }
+                    }}
+                    className="w-full"
+                    disabled={!weatherApiKey || weatherProvider === "ha_integration"}
+                  >
+                    Lookup Location
+                  </Button>
+                </div>
+              </div>
+
+              {/* Current Location Display */}
+              {weatherLocation.city && (
+                <div className="p-3 bg-muted rounded-lg">
+                  <div className="font-medium">Current Location</div>
+                  <p className="text-sm">Zip: {weatherLocation.zip || 'Not set'}</p>
+                  <p className="text-sm">City: {weatherLocation.city}, {weatherLocation.country}</p>
+                  <p className="text-xs text-muted-foreground">Coordinates: {weatherLocation.lat.toFixed(4)}, {weatherLocation.lon.toFixed(4)}</p>
+                  {weatherProvider === "accuweather" && weatherLocation.locationKey && (
+                    <p className="text-xs text-muted-foreground">Location Key: {weatherLocation.locationKey}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Manual Coordinate Override */}
+              <div className="space-y-2">
+                <Label>Manual Coordinate Override (Optional)</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    type="number"
+                    step="any"
+                    placeholder="Latitude"
+                    value={weatherLocation.lat || ''}
+                    onChange={(e) => setWeatherLocation(prev => ({ ...prev, lat: parseFloat(e.target.value) || 0 }))}
+                  />
+                  <Input
+                    type="number"
+                    step="any"
+                    placeholder="Longitude"
+                    value={weatherLocation.lon || ''}
+                    onChange={(e) => setWeatherLocation(prev => ({ ...prev, lon: parseFloat(e.target.value) || 0 }))}
+                  />
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
