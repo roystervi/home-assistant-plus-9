@@ -1197,8 +1197,9 @@ export default function SettingsPage() {
                           return;
                         }
 
+                        const loadingId = toast.loading('Looking up ZIP code...');
+
                         try {
-                          toast.loading('Looking up ZIP code...');
                           let lookupUrl = '';
 
                           switch (weatherProvider) {
@@ -1269,6 +1270,8 @@ export default function SettingsPage() {
                           weatherApiSettings.setSetting('location', newLocation);
                         } catch (error) {
                           toast.error(`ZIP lookup failed: ${error.message}`);
+                        } finally {
+                          toast.dismiss(loadingId);
                         }
                       }}
                       className='w-full'
