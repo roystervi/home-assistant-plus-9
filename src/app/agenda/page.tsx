@@ -1,5 +1,10 @@
-import Agenda from "@/components/pages/Agenda"
+import ClientLayout from "@/components/ClientLayout";
+import Agenda from "@/components/pages/Agenda";
 
 export default function Page() {
-  return <Agenda />
+  return (
+    <ClientLayout currentPage="agenda">
+      <Agenda />
+    </ClientLayout>
+  );
 }

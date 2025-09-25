@@ -1,10 +1,10 @@
 import ClientLayout from "@/components/ClientLayout";
-import Dashboard from "@/components/pages/Dashboard";
+import AlarmPanel from "@/components/pages/AlarmPanel";
 
 export default function Page() {
   return (
-    <ClientLayout currentPage="dashboard">
-      <Dashboard />
+    <ClientLayout currentPage="alarm">
+      <AlarmPanel />
     </ClientLayout>
   );
 }
