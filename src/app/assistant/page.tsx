@@ -1,10 +1,10 @@
 import ClientLayout from "@/components/ClientLayout";
-import Dashboard from "@/components/pages/Dashboard";
+import Assistant from "@/components/pages/Assistant";
 
 export default function Page() {
   return (
-    <ClientLayout currentPage="dashboard">
-      <Dashboard />
+    <ClientLayout currentPage="assistant">
+      <Assistant />
     </ClientLayout>
   );
 }

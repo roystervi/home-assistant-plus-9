@@ -1,10 +1,10 @@
 import ClientLayout from "@/components/ClientLayout";
-import Dashboard from "@/components/pages/Dashboard";
+import System from "@/components/pages/System";
 
 export default function Page() {
   return (
-    <ClientLayout currentPage="dashboard">
-      <Dashboard />
+    <ClientLayout currentPage="system">
+      <System />
     </ClientLayout>
   );
 }

@@ -1,10 +1,10 @@
 import ClientLayout from "@/components/ClientLayout";
-import Dashboard from "@/components/pages/Dashboard";
+import SprinklerPage from "@/components/pages/Sprinkler";
 
 export default function Page() {
   return (
-    <ClientLayout currentPage="dashboard">
-      <Dashboard />
+    <ClientLayout currentPage="sprinkler">
+      <SprinklerPage />
     </ClientLayout>
   );
 }
