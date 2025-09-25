@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text, real } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, integer, text, real, index } from 'drizzle-orm/sqlite-core';
 
 export const energyBills = sqliteTable('energy_bills', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -151,6 +151,16 @@ export const media = sqliteTable('media', {
   updatedAt: text('updated_at').notNull(),
 });
 
+export const userSettings = sqliteTable('user_settings', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: text('user_id').notNull().references(() => user.id),
+  settings: text('settings', { mode: 'json' }).notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+  userIdIdx: index('user_settings_user_id_idx').on(table.userId),
+}));
+
 // Auth tables for better-auth
 export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
@@ -160,6 +170,10 @@ export const user = sqliteTable("user", {
     .$defaultFn(() => false)
     .notNull(),
   image: text("image"),
+  googleAccessToken: text("google_access_token"),
+  googleRefreshToken: text("google_refresh_token"),
+  googleTokenExpiry: integer("google_token_expiry", { mode: "timestamp" }),
+  googleCalendarId: text("google_calendar_id"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .$defaultFn(() => new Date())
     .notNull(),
@@ -215,3 +229,31 @@ export const verification = sqliteTable("verification", {
     () => new Date(),
   ),
 });
+
+export const googleCalendarTokens = sqliteTable('google_calendar_tokens', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token').notNull(),
+  tokenExpiry: text('token_expiry').notNull(),
+  scope: text('scope'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const googleCalendars = sqliteTable('google_calendars', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token'),
+  tokenType: text('token_type').notNull().default('Bearer'),
+  scope: text('scope').notNull().default('https://www.googleapis.com/auth/calendar.readonly'),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }),
+  lastRefreshed: integer('last_refreshed', { mode: 'timestamp' }),
+  lastSynced: integer('last_synced', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()).notNull(),
+}, (table) => ({
+  userIdIdx: index('google_calendars_user_id_idx').on(table.userId),
+  expiresAtIdx: index('google_calendars_expires_at_idx').on(table.expiresAt),
+}));

@@ -36,13 +36,8 @@ import {
   RefreshCw,
   Key,
 } from "lucide-react";
-
-import {
-  haConnectionSettings,
-  weatherApiSettings,
-  energyApiSettings,
-  appearanceSettings,
-} from "@/lib/storage";
+import { useSession } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
 
 // Interfaces for type safety
 interface ConnectionStatus {
@@ -104,6 +99,12 @@ interface BillingRateStructure {
   }>;
 }
 
+const defaultBillingRates = {
+  tiers: [{ min: 0, max: 1000, rate: 0.12 }, { min: 1000, max: 2000, rate: 0.15 }, { min: 2000, max: null, rate: 0.18 }],
+  fixedCharges: [{ name: "Basic Service Charge", amount: 8.95 }, { name: "Distribution Charge", amount: 12.50 }, { name: "Transmission Charge", amount: 4.25 }],
+  taxes: [{ name: "State Tax", rate: 6.25 }, { name: "Municipal Tax", rate: 2.50 }],
+};
+
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("connections");
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
@@ -143,11 +144,7 @@ export default function SettingsPage() {
     sqlitePath: "./data/homeassistant.db",
     dbSize: "12.5 MB",
   });
-  const [billingRates, setBillingRates] = useState<BillingRateStructure>({
-    tiers: [{ min: 0, max: 1000, rate: 0.12 }, { min: 1000, max: 2000, rate: 0.15 }, { min: 2000, max: null, rate: 0.18 }],
-    fixedCharges: [{ name: "Basic Service Charge", amount: 8.95 }, { name: "Distribution Charge", amount: 12.50 }, { name: "Transmission Charge", amount: 4.25 }],
-    taxes: [{ name: "State Tax", rate: 6.25 }, { name: "Municipal Tax", rate: 2.50 }],
-  });
+  const [billingRates, setBillingRates] = useState<BillingRateStructure>(defaultBillingRates);
   const [googleClientId, setGoogleClientId] = useState("");
   const [googleClientSecret, setGoogleClientSecret] = useState("");
   const [openaiApiKey, setOpenaiApiKey] = useState("");
@@ -159,102 +156,243 @@ export default function SettingsPage() {
   const [isLoadingStates, setIsLoadingStates] = useState(false);
   const [haStatusStates, setHaStatusStates] = useState<Record<string, any>>({});
 
+  const { data: session, isPending: sessionPending } = useSession();
+  const router = useRouter();
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveTimeout, setSaveTimeout] = useState<NodeJS.Timeout | null>(null);
+
   // Load from storage on mount
   useEffect(() => {
-    const loadSettings = () => {
-      const haSettings = haConnectionSettings.get();
-      const weatherSettings = weatherApiSettings.get();
-      const energySettings = energyApiSettings.get();
-      const appearanceData = appearanceSettings.get();
+    if (sessionPending) return;
 
-      if (haSettings.url) setHaUrl(haSettings.url);
-      if (haSettings.token) setHaToken(haSettings.token);
-      if (haSettings.connectionTimeout) setHaTimeout(haSettings.connectionTimeout);
-      if (haSettings.isConnected) setConnectionStatus(prev => ({ ...prev, ha: "connected" }));
+    if (!session?.user) {
+      router.push(`/login?redirect=${encodeURIComponent('/settings')}`);
+      return;
+    }
 
-      if (weatherSettings.provider) setWeatherProvider(weatherSettings.provider);
-      if (weatherSettings.apiKey) setWeatherApiKey(weatherSettings.apiKey);
-      if (weatherSettings.location) setWeatherLocation(weatherSettings.location);
-      if (weatherSettings.units) setWeatherUnits(weatherSettings.units);
-      if (weatherSettings.isConfigured) setConnectionStatus(prev => ({ ...prev, weather: "configured" }));
+    const fetchSettings = async () => {
+      try {
+        const token = localStorage.getItem("bearer_token");
+        if (!token) throw new Error("No auth token");
 
-      if (energySettings.provider) setEnergyProvider(energySettings.provider);
-      if (energySettings.costPerKwh) setCostPerKwh(energySettings.costPerKwh);
-      if (energySettings.timezone) setEnergyTimezone(energySettings.timezone);
-      if (energySettings.utilityApiKey) setUtilityApiKey(energySettings.utilityApiKey);
-      if (energySettings.senseEmail) setSenseEmail(energySettings.senseEmail);
-      if (energySettings.sensePassword) setSensePassword(energySettings.sensePassword);
-      if (energySettings.isConfigured) setConnectionStatus(prev => ({ ...prev, energy: "configured" }));
+        const res = await fetch("/api/settings", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      if (appearanceData.theme) setAppearance(prev => ({ ...prev, theme: appearanceData.theme }));
-      if (appearanceData.backgroundColor) setAppearance(prev => ({ ...prev, backgroundColor: appearanceData.backgroundColor }));
-      if (appearanceData.textSize) setAppearance(prev => ({ ...prev, textSize: appearanceData.textSize }));
-      if (appearanceData.textWeight) setAppearance(prev => ({ ...prev, textWeight: appearanceData.textWeight }));
-      if (appearanceData.textColor) setAppearance(prev => ({ ...prev, textColor: appearanceData.textColor }));
-      if (appearanceData.displayMode) setAppearance(prev => ({ ...prev, displayMode: appearanceData.displayMode }));
-
-      const billingData = energyApiSettings.getSetting("billingRates");
-      if (billingData) setBillingRates(billingData);
-
-      // Initialize display mode
-      if (typeof window !== "undefined") {
-        const savedDisplayMode = localStorage.getItem("displayMode") as "tv" | "desktop" | "tablet" | "phone" | null;
-        if (savedDisplayMode) {
-          setAppearance(prev => ({ ...prev, displayMode: savedDisplayMode }));
-          document.documentElement.classList.remove("display-tv", "display-desktop", "display-tablet", "display-phone");
-          document.documentElement.classList.add(`display-${savedDisplayMode}`);
+        if (!res.ok) {
+          if (res.status === 401) {
+            router.push("/login");
+            return;
+          }
+          throw new Error(`HTTP ${res.status}`);
         }
-      }
 
-      // Load API keys from localStorage
-      if (typeof window !== "undefined") {
-        const savedGoogleClientId = localStorage.getItem("GOOGLE_CLIENT_ID");
-        const savedGoogleClientSecret = localStorage.getItem("GOOGLE_CLIENT_SECRET");
-        const savedOpenaiApiKey = localStorage.getItem("OPENAI_API_KEY");
-        const savedOpenWeatherKey = localStorage.getItem("OPENWEATHER_API_KEY");
-        const savedWeatherApiComKey = localStorage.getItem("WEATHERAPI_COM_KEY");
+        const { settings } = await res.json();
 
-        if (savedGoogleClientId) setGoogleClientId(savedGoogleClientId);
-        if (savedGoogleClientSecret) setGoogleClientSecret(savedGoogleClientSecret);
-        if (savedOpenaiApiKey) setOpenaiApiKey(savedOpenaiApiKey);
-        if (savedOpenWeatherKey) setOpenWeatherKey(savedOpenWeatherKey);
-        if (savedWeatherApiComKey) setWeatherApiComKey(savedWeatherApiComKey);
+        // Fill partial defaults
+        const fullSettings = {
+          ha: settings.ha || { url: "", token: "", connectionTimeout: 5000, isConnected: false },
+          weather: settings.weather || { provider: "openweathermap", apiKey: "", location: { lat: 0, lon: 0, city: "", country: "", zip: "", locationKey: "" }, units: "imperial", isConfigured: false },
+          energy: settings.energy || { provider: "manual", costPerKwh: 0.12, timezone: "America/New_York", utilityApiKey: "", senseEmail: "", sensePassword: "", billingRates: defaultBillingRates, isConfigured: false },
+          appearance: settings.appearance || { theme: "auto", backgroundColor: "#f3f4f6", textSize: 16, textWeight: "normal", textColor: "#111827", displayMode: "desktop" },
+          apiKeys: settings.apiKeys || { googleClientId: "", googleClientSecret: "", openaiApiKey: "", openWeatherKey: "", weatherApiComKey: "" },
+          other: settings.other || { detailedLogs: false },
+          ...settings // Override with actual data
+        };
+
+        // Set states from fullSettings
+        setHaUrl(fullSettings.ha.url);
+        setHaToken(fullSettings.ha.token);
+        setHaTimeout(fullSettings.ha.connectionTimeout);
+        setConnectionStatus({
+          ha: fullSettings.ha.isConnected ? "connected" : "disconnected",
+          weather: fullSettings.weather.isConfigured ? "configured" : "not_configured",
+          energy: fullSettings.energy.isConfigured ? "configured" : "not_configured",
+        });
+
+        setWeatherProvider(fullSettings.weather.provider);
+        setWeatherApiKey(fullSettings.weather.apiKey);
+        setWeatherLocation(fullSettings.weather.location);
+        setWeatherUnits(fullSettings.weather.units);
+
+        setEnergyProvider(fullSettings.energy.provider);
+        setCostPerKwh(fullSettings.energy.costPerKwh);
+        setEnergyTimezone(fullSettings.energy.timezone);
+        setUtilityApiKey(fullSettings.energy.utilityApiKey);
+        setSenseEmail(fullSettings.energy.senseEmail);
+        setSensePassword(fullSettings.energy.sensePassword);
+        setBillingRates(fullSettings.energy.billingRates || defaultBillingRates);
+
+        setAppearance(fullSettings.appearance);
+        setDetailedLogs(fullSettings.other.detailedLogs || false);
+
+        setGoogleClientId(fullSettings.apiKeys.googleClientId);
+        setGoogleClientSecret(fullSettings.apiKeys.googleClientSecret);
+        setOpenaiApiKey(fullSettings.apiKeys.openaiApiKey);
+        setOpenWeatherKey(fullSettings.apiKeys.openWeatherKey);
+        setWeatherApiComKey(fullSettings.apiKeys.weatherApiComKey);
+
+        // Apply display mode class
+        if (fullSettings.appearance.displayMode && typeof document !== "undefined") {
+          document.documentElement.classList.remove("display-tv", "display-desktop", "display-tablet", "display-phone");
+          document.documentElement.classList.add(`display-${fullSettings.appearance.displayMode}`);
+        }
+      } catch (error) {
+        console.error("Failed to fetch settings:", error);
+        toast.error("Failed to load settings from database");
       }
     };
 
-    loadSettings();
-  }, []);
+    fetchSettings();
+  }, [session, sessionPending, router]);
+
+  // Add useEffect for display mode application
+  useEffect(() => {
+    if (appearance.displayMode && typeof document !== "undefined") {
+      document.documentElement.classList.remove("display-tv", "display-desktop", "display-tablet", "display-phone");
+      document.documentElement.classList.add(`display-${appearance.displayMode}`);
+    }
+  }, [appearance.displayMode]);
 
   // Save to storage on changes
   useEffect(() => {
-    haConnectionSettings.setSetting("url", haUrl);
-    haConnectionSettings.setSetting("token", haToken);
-    haConnectionSettings.setSetting("connectionTimeout", haTimeout);
+    if (!session?.user) return;
 
-    weatherApiSettings.setSetting("provider", weatherProvider);
-    weatherApiSettings.setSetting("apiKey", weatherApiKey);
-    weatherApiSettings.setSetting("location", weatherLocation);
-    weatherApiSettings.setSetting("units", weatherUnits);
+    if (saveTimeout) clearTimeout(saveTimeout);
 
-    energyApiSettings.setSetting("provider", energyProvider);
-    energyApiSettings.setSetting("costPerKwh", costPerKwh);
-    energyApiSettings.setSetting("timezone", energyTimezone);
-    energyApiSettings.setSetting("utilityApiKey", utilityApiKey);
-    energyApiSettings.setSetting("senseEmail", senseEmail);
-    energyApiSettings.setSetting("sensePassword", sensePassword);
-    energyApiSettings.setSetting("billingRates", billingRates);
+    const timeout = setTimeout(() => {
+      saveAllSettings();
+    }, 1000);
 
-    appearanceSettings.set(appearance);
+    setSaveTimeout(timeout);
 
-    localStorage.setItem("displayMode", appearance.displayMode || "desktop");
+    return () => clearTimeout(timeout);
+  }, [
+    haUrl,
+    haToken,
+    haTimeout,
+    weatherProvider,
+    weatherApiKey,
+    weatherLocation,
+    weatherUnits,
+    energyProvider,
+    costPerKwh,
+    energyTimezone,
+    utilityApiKey,
+    senseEmail,
+    sensePassword,
+    billingRates,
+    appearance,
+    googleClientId,
+    googleClientSecret,
+    openaiApiKey,
+    openWeatherKey,
+    weatherApiComKey,
+    detailedLogs,
+    connectionStatus,
+  ]);
 
-    // Save API keys to localStorage
-    localStorage.setItem("GOOGLE_CLIENT_ID", googleClientId);
-    localStorage.setItem("GOOGLE_CLIENT_SECRET", googleClientSecret);
-    localStorage.setItem("OPENAI_API_KEY", openaiApiKey);
-    localStorage.setItem("OPENWEATHER_API_KEY", openWeatherKey);
-    localStorage.setItem("WEATHERAPI_COM_KEY", weatherApiComKey);
-  }, [haUrl, haToken, haTimeout, weatherProvider, weatherApiKey, weatherLocation, weatherUnits, energyProvider, costPerKwh, energyTimezone, utilityApiKey, senseEmail, sensePassword, billingRates, appearance, googleClientId, googleClientSecret, openaiApiKey, openWeatherKey, weatherApiComKey]);
+  const saveAllSettings = useCallback(async () => {
+    if (!session?.user || isSaving) return;
+
+    setIsSaving(true);
+    if (saveTimeout) clearTimeout(saveTimeout);
+
+    try {
+      const allSettings = {
+        ha: {
+          url: haUrl,
+          token: haToken,
+          connectionTimeout: haTimeout,
+          isConnected: connectionStatus.ha === "connected",
+        },
+        weather: {
+          provider: weatherProvider,
+          apiKey: weatherApiKey,
+          location: weatherLocation,
+          units: weatherUnits,
+          isConfigured: connectionStatus.weather === "configured",
+        },
+        energy: {
+          provider: energyProvider,
+          costPerKwh: costPerKwh,
+          timezone: energyTimezone,
+          utilityApiKey: utilityApiKey,
+          senseEmail: senseEmail,
+          sensePassword: sensePassword,
+          billingRates,
+          isConfigured: connectionStatus.energy === "configured",
+        },
+        appearance,
+        apiKeys: {
+          googleClientId,
+          googleClientSecret,
+          openaiApiKey,
+          openWeatherKey,
+          weatherApiComKey,
+        },
+        other: {
+          detailedLogs,
+        },
+      };
+
+      const token = localStorage.getItem("bearer_token");
+      if (!token) throw new Error("No auth token");
+
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ settings: allSettings }),
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          toast.error("Session expired. Please log in again.");
+          router.push("/login");
+          return;
+        }
+        const { error, code } = await res.json().catch(() => ({}));
+        throw new Error(error || `HTTP ${res.status} ${code}`);
+      }
+
+      toast.success("Settings saved to database");
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+      toast.error(`Failed to save settings: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    session,
+    haUrl,
+    haToken,
+    haTimeout,
+    connectionStatus,
+    weatherProvider,
+    weatherApiKey,
+    weatherLocation,
+    weatherUnits,
+    energyProvider,
+    costPerKwh,
+    energyTimezone,
+    utilityApiKey,
+    senseEmail,
+    sensePassword,
+    billingRates,
+    appearance,
+    googleClientId,
+    googleClientSecret,
+    openaiApiKey,
+    openWeatherKey,
+    weatherApiComKey,
+    detailedLogs,
+    isSaving,
+    saveTimeout,
+    router,
+  ]);
 
   const handleDisplayModeChange = useCallback((mode) => {
     setAppearance(prev => ({ ...prev, displayMode: mode }));
@@ -296,21 +434,19 @@ export default function SettingsPage() {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
 
+      const allSettings = {
+        ha: { url: haUrl, token: haToken, connectionTimeout: haTimeout },
+        weather: { provider: weatherProvider, apiKey: weatherApiKey, location: weatherLocation, units: weatherUnits },
+        energy: { provider: energyProvider, costPerKwh, timezone: energyTimezone, utilityApiKey, senseEmail: "****", sensePassword: "****", billingRates },
+        appearance,
+        localServices,
+        apiKeys: { googleClientId, googleClientSecret: "****", openaiApiKey: "****", openWeatherKey, weatherApiComKey: "****" },
+        detailedLogs,
+      };
+
       const backupData = {
         timestamp: new Date().toISOString(),
-        settings: {
-          haConnection: haConnectionSettings.get(),
-          weatherApi: weatherApiSettings.get(),
-          energyApi: energyApiSettings.get(),
-          appearance: appearance,
-          localServices,
-          billingRates,
-          googleClientId,
-          googleClientSecret,
-          openaiApiKey,
-          openWeatherKey,
-          weatherApiComKey,
-        },
+        settings: allSettings,
         version: "1.0.0",
       };
 
@@ -331,7 +467,7 @@ export default function SettingsPage() {
       setIsBackingUp(false);
       setBackupProgress(0);
     }
-  }, [haConnectionSettings, weatherApiSettings, energyApiSettings, appearance, localServices, billingRates, googleClientId, googleClientSecret, openaiApiKey, openWeatherKey, weatherApiComKey]);
+  }, [haUrl, haToken, haTimeout, weatherProvider, weatherApiKey, weatherLocation, weatherUnits, energyProvider, costPerKwh, energyTimezone, utilityApiKey, senseEmail, sensePassword, billingRates, appearance, localServices, googleClientId, googleClientSecret, openaiApiKey, openWeatherKey, weatherApiComKey, detailedLogs]);
 
   const handleImportBackup = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -342,18 +478,39 @@ export default function SettingsPage() {
       const backupData = JSON.parse(text);
 
       if (backupData.settings) {
-        if (backupData.settings.haConnection) haConnectionSettings.set(backupData.settings.haConnection);
-        if (backupData.settings.weatherApi) weatherApiSettings.set(backupData.settings.weatherApi);
-        if (backupData.settings.energyApi) energyApiSettings.set(backupData.settings.energyApi);
+        // Set from backupData.settings.ha.url etc., similar to fetchSettings logic
+        if (backupData.settings.ha) {
+          setHaUrl(backupData.settings.ha.url || "");
+          setHaToken(backupData.settings.ha.token || "");
+          setHaTimeout(backupData.settings.ha.connectionTimeout || 5000);
+        }
+        if (backupData.settings.weather) {
+          setWeatherProvider(backupData.settings.weather.provider || "openweathermap");
+          setWeatherApiKey(backupData.settings.weather.apiKey || "");
+          setWeatherLocation(backupData.settings.weather.location || { lat: 0, lon: 0, city: "", country: "", zip: "", locationKey: "" });
+          setWeatherUnits(backupData.settings.weather.units || "imperial");
+        }
+        if (backupData.settings.energy) {
+          setEnergyProvider(backupData.settings.energy.provider || "manual");
+          setCostPerKwh(backupData.settings.energy.costPerKwh || 0.12);
+          setEnergyTimezone(backupData.settings.energy.timezone || "America/New_York");
+          setUtilityApiKey(backupData.settings.energy.utilityApiKey || "");
+          setSenseEmail(backupData.settings.energy.senseEmail || "");
+          setSensePassword(backupData.settings.energy.sensePassword || "");
+          setBillingRates(backupData.settings.energy.billingRates || defaultBillingRates);
+        }
         if (backupData.settings.appearance) setAppearance(backupData.settings.appearance);
-        if (backupData.settings.localServices) setLocalServices(backupData.settings.localServices);
-        if (backupData.settings.billingRates) setBillingRates(backupData.settings.billingRates);
-        if (backupData.settings.googleClientId) setGoogleClientId(backupData.settings.googleClientId);
-        if (backupData.settings.googleClientSecret) setGoogleClientSecret(backupData.settings.googleClientSecret);
-        if (backupData.settings.openaiApiKey) setOpenaiApiKey(backupData.settings.openaiApiKey);
-        if (backupData.settings.openWeatherKey) setOpenWeatherKey(backupData.settings.openWeatherKey);
-        if (backupData.settings.weatherApiComKey) setWeatherApiComKey(backupData.settings.weatherApiComKey);
+        if (backupData.settings.billingRates) setBillingRates(backupData.settings.billingRates || defaultBillingRates);
+        if (backupData.settings.apiKeys) {
+          setGoogleClientId(backupData.settings.apiKeys.googleClientId || "");
+          setGoogleClientSecret(backupData.settings.apiKeys.googleClientSecret || "");
+          setOpenaiApiKey(backupData.settings.apiKeys.openaiApiKey || "");
+          setOpenWeatherKey(backupData.settings.apiKeys.openWeatherKey || "");
+          setWeatherApiComKey(backupData.settings.apiKeys.weatherApiComKey || "");
+        }
+        if (backupData.settings.other) setDetailedLogs(backupData.settings.other.detailedLogs || false);
 
+        await saveAllSettings();
         toast.success("Settings backup imported successfully!");
         setTimeout(() => window.location.reload(), 1000);
       } else {
@@ -362,9 +519,9 @@ export default function SettingsPage() {
     } catch (error) {
       toast.error(`Failed to import backup: ${error.message}`);
     }
-  }, []);
+  }, [saveAllSettings]);
 
-  const resetToDefaults = useCallback(() => {
+  const resetToDefaults = useCallback(async () => {
     haConnectionSettings.reset();
     weatherApiSettings.reset();
     energyApiSettings.reset();
@@ -424,8 +581,9 @@ export default function SettingsPage() {
       document.documentElement.classList.add("display-desktop");
     }
 
+    await saveAllSettings();
     toast.success("All settings reset to defaults");
-  }, []);
+  }, [saveAllSettings]);
 
   const addRateTier = useCallback(() => {
     setBillingRates(prev => ({
@@ -496,19 +654,20 @@ export default function SettingsPage() {
     }));
   }, []);
 
-  const saveBillingRates = useCallback(() => {
-    energyApiSettings.setSetting("billingRates", billingRates);
+  const saveBillingRates = useCallback(async () => {
+    await saveAllSettings();
     toast.success("Billing rates saved successfully");
-  }, [billingRates]);
+  }, [billingRates, saveAllSettings]);
 
-  const resetBillingRates = useCallback(() => {
+  const resetBillingRates = useCallback(async () => {
     setBillingRates({
       tiers: [{ min: 0, max: 1000, rate: 0.12 }, { min: 1000, max: 2000, rate: 0.15 }, { min: 2000, max: null, rate: 0.18 }],
       fixedCharges: [{ name: "Basic Service Charge", amount: 8.95 }, { name: "Distribution Charge", amount: 12.50 }, { name: "Transmission Charge", amount: 4.25 }],
       taxes: [{ name: "State Tax", rate: 6.25 }, { name: "Municipal Tax", rate: 2.50 }]
     });
+    await saveAllSettings();
     toast.success("Billing rates reset to defaults");
-  }, []);
+  }, [saveAllSettings]);
 
   // Utility functions for UI
   const getConnectionIcon = (status) => {
@@ -736,7 +895,9 @@ export default function SettingsPage() {
 
     toast.success('All connections saved and tested!');
     setIsLoadingStates(false);
-  }, [haUrl, haToken, weatherApiKey, weatherLocation, weatherProvider, weatherUnits, energyProvider, utilityApiKey, senseEmail, sensePassword, testHaConnection, testWeatherApi, testEnergyConnection]);
+    
+    await saveAllSettings();
+  }, [haUrl, haToken, weatherApiKey, weatherLocation, weatherProvider, weatherUnits, energyProvider, utilityApiKey, senseEmail, sensePassword, testHaConnection, testWeatherApi, testEnergyConnection, saveAllSettings]);
 
   const handleGoogleOAuthTest = useCallback(async () => {
     if (!googleClientId || !googleClientSecret) {
@@ -753,17 +914,17 @@ export default function SettingsPage() {
     }
   }, [googleClientId, googleClientSecret]);
 
-  const saveGoogleKeys = useCallback(() => {
-    // Already saved via useEffect to localStorage
+  const saveGoogleKeys = useCallback(async () => {
+    await saveAllSettings();
     toast.success('Google keys saved securely');
-  }, [googleClientId, googleClientSecret]);
+  }, [saveAllSettings]);
 
-  const saveOpenAIKey = useCallback(() => {
-    // Already saved via useEffect
+  const saveOpenAIKey = useCallback(async () => {
+    await saveAllSettings();
     toast.success('OpenAI key saved');
-  }, [openaiApiKey]);
+  }, [saveAllSettings]);
 
-  const saveWeatherKeys = useCallback(() => {
+  const saveWeatherKeys = useCallback(async () => {
     // Already saved via useEffect
     // Update weather settings if needed
     if (openWeatherKey) {
@@ -773,8 +934,9 @@ export default function SettingsPage() {
       setWeatherApiKey(weatherApiComKey);
       setWeatherProvider('weatherapi');
     }
+    await saveAllSettings();
     toast.success('Weather keys updated');
-  }, [openWeatherKey, weatherApiComKey]);
+  }, [openWeatherKey, weatherApiComKey, saveAllSettings]);
 
   return (
     <div className='space-y-6'>
@@ -792,7 +954,7 @@ export default function SettingsPage() {
             <div className='flex gap-2'>
               <Button 
                 onClick={saveConnections} 
-                disabled={isLoadingStates}
+                disabled={isLoadingStates || isSaving}
                 variant='default' 
                 size='sm'
               >
@@ -830,6 +992,13 @@ export default function SettingsPage() {
               <span className='text-sm'>{connectionStatus.energy === 'configured' ? 'Configured' : 'Not Configured'}</span>
             </div>
           </div>
+
+          {isSaving && (
+            <div className="flex items-center gap-2 text-sm text-primary">
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              Saving to database...
+            </div>
+          )}
         </CardContent>
       </Card>
 
