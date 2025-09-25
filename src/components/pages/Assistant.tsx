@@ -71,13 +71,31 @@ export default function Assistant() {
   ];
 
   useEffect(() => {
+    // Check Home Assistant connection
+    const checkHomeAssistant = async () => {
+      try {
+        const response = await fetch('/api/homeassistant/test-connection');
+        if (response.ok) {
+          const data = await response.json();
+          setStatus(prev => ({ ...prev, homeAssistant: data.connected || true }));
+        } else {
+          setStatus(prev => ({ ...prev, homeAssistant: false }));
+        }
+      } catch (error) {
+        setStatus(prev => ({ ...prev, homeAssistant: false }));
+      }
+    };
+
+    checkHomeAssistant();
+
     // Simulate status updates
     const interval = setInterval(() => {
+      checkHomeAssistant();
       setStats(prev => ({
         ...prev,
         uptime: updateUptime(prev.uptime)
       }));
-    }, 60000);
+    }, 30000); // Check every 30 seconds
 
     return () => clearInterval(interval);
   }, []);
