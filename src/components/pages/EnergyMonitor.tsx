@@ -280,6 +280,7 @@ export default function EnergyMonitor() {
   // Calculate current month bill from readings with custom period support
   const calculateCurrentMonthBill = useCallback(async (billingPeriod: string) => {
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem("bearer_token") : null;
       const periodDates = getBillingPeriodDates(billingPeriod)
       
       const response = await fetch(`/api/energy/calculate-bill/${billingPeriod}?` + new URLSearchParams({
@@ -288,7 +289,12 @@ export default function EnergyMonitor() {
         endDate: periodDates.endDate.toISOString().split('T')[0],
         startDay: periodDates.startDay.toString(),
         endDay: periodDates.endDay.toString()
-      }))
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      })
       
       if (response.ok) {
         const calculation = await response.json()
@@ -304,9 +310,15 @@ export default function EnergyMonitor() {
 
   // Load billing history from API
   const loadBillingHistory = useCallback(async () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem("bearer_token") : null;
     setLoadingBills(true)
     try {
-      const response = await fetch('/api/energy/bills')
+      const response = await fetch('/api/energy/bills', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      })
       if (response.ok) {
         const bills = await response.json()
         setBillingHistory(bills)
@@ -331,7 +343,14 @@ export default function EnergyMonitor() {
     if (!currentMonthBill) return
 
     try {
-      const response = await fetch(`/api/energy/calculate-bill/${currentMonthBill.billingMonth}?save=true`)
+      const token = typeof window !== 'undefined' ? localStorage.getItem("bearer_token") : null;
+      const response = await fetch(`/api/energy/calculate-bill/${currentMonthBill.billingMonth}?save=true`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      })
       if (response.ok) {
         toast.success('Monthly bill saved successfully')
         await loadBillingHistory()
