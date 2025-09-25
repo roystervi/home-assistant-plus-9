@@ -3,6 +3,12 @@
 import { ThemeProvider } from "next-themes"
 import { BackgroundProvider } from "./theme-provider"
 import { ReactNode } from "react"
+import dynamic from "next/dynamic";
+
+const ThemeProvider = dynamic(
+  () => import("@/components/theme-provider").then((mod) => ({ default: mod.ThemeProvider })),
+  { ssr: false }
+);
 
 interface ProvidersProps {
   children: ReactNode
@@ -10,12 +16,14 @@ interface ProvidersProps {
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <>
-      <BackgroundProvider>
-        <ThemeProvider>
-          {children}
-        </ThemeProvider>
-      </BackgroundProvider>
-    </>
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        <BackgroundProvider>
+          <ThemeProvider>
+            {children}
+          </ThemeProvider>
+        </BackgroundProvider>
+      </body>
+    </html>
   )
 }
