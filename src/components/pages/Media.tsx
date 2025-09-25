@@ -243,12 +243,14 @@ export default function MediaPage() {
 
   // Update folders when musicFiles change
   useEffect(() => {
-    const folders = new Set(musicFiles.map(f => f.folder || 'General').filter(Boolean));
+    const safeMusicFiles = Array.isArray(musicFiles) ? musicFiles : [];
+    const folders = new Set(safeMusicFiles.map(f => f.folder || 'General').filter(Boolean));
     setMusicFolders(folders);
   }, [musicFiles]);
 
   useEffect(() => {
-    const folders = new Set(videoFiles.map(f => f.folder || 'General').filter(Boolean));
+    const safeVideoFiles = Array.isArray(videoFiles) ? videoFiles : [];
+    const folders = new Set(safeVideoFiles.map(f => f.folder || 'General').filter(Boolean));
     setVideoFolders(folders);
   }, [videoFiles]);
 
@@ -334,7 +336,8 @@ export default function MediaPage() {
   // Update remove handlers to also delete from IDB
   const removeMusicFile = useCallback((id: string) => {
     setMusicFiles(prev => {
-      const newFiles = prev.filter(f => f.id !== id);
+      const current = Array.isArray(prev) ? prev : [];
+      const newFiles = current.filter(f => f.id !== id);
       // Immediately delete from IDB
       deleteFileFromIDB(MUSIC_STORE, id).catch(console.error);
       return newFiles;
@@ -344,7 +347,8 @@ export default function MediaPage() {
 
   const removeVideoFile = useCallback((id: string) => {
     setVideoFiles(prev => {
-      const newFiles = prev.filter(f => f.id !== id);
+      const current = Array.isArray(prev) ? prev : [];
+      const newFiles = current.filter(f => f.id !== id);
       // Immediately delete from IDB
       deleteFileFromIDB(VIDEO_STORE, id).catch(console.error);
       return newFiles;
@@ -489,9 +493,9 @@ export default function MediaPage() {
         };
         
         if (type === "music") {
-          setMusicFiles(prev => [...prev, mediaFile]);
+          setMusicFiles(prev => [...(Array.isArray(prev) ? prev : []), mediaFile]);
         } else {
-          setVideoFiles(prev => [...prev, mediaFile]);
+          setVideoFiles(prev => [...(Array.isArray(prev) ? prev : []), mediaFile]);
         }
         
         toast.success(`${file.name} uploaded and ready to play!`);
@@ -500,7 +504,7 @@ export default function MediaPage() {
         toast.error(`Failed to process ${file.name}`);
       }
     }
-  }, [uploadFolder, setMusicFiles, setVideoFiles]);
+  }, [uploadFolder]);
 
   const handleDrop = useCallback((e: React.DragEvent, type: "music" | "video") => {
     e.preventDefault();
@@ -509,13 +513,13 @@ export default function MediaPage() {
   }, [handleFileUpload]);
 
   // Filter media files based on search
-  const filteredMusicFiles = musicFiles.filter(file =>
+  const filteredMusicFiles = (Array.isArray(musicFiles) ? musicFiles : []).filter(file =>
     file.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     file.artist?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     file.album?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredVideoFiles = videoFiles.filter(file =>
+  const filteredVideoFiles = (Array.isArray(videoFiles) ? videoFiles : []).filter(file =>
     file.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
