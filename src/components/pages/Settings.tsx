@@ -522,11 +522,6 @@ export default function SettingsPage() {
   }, [saveAllSettings]);
 
   const resetToDefaults = useCallback(async () => {
-    haConnectionSettings.reset();
-    weatherApiSettings.reset();
-    energyApiSettings.reset();
-    appearanceSettings.reset();
-
     setHaUrl("");
     setHaToken("");
     setHaTimeout(5000);
@@ -552,11 +547,7 @@ export default function SettingsPage() {
       sqlitePath: "./data/homeassistant.db",
       dbSize: "12.5 MB",
     });
-    setBillingRates({
-      tiers: [{ min: 0, max: 1000, rate: 0.12 }, { min: 1000, max: 2000, rate: 0.15 }, { min: 2000, max: null, rate: 0.18 }],
-      fixedCharges: [{ name: "Basic Service Charge", amount: 8.95 }, { name: "Distribution Charge", amount: 12.50 }, { name: "Transmission Charge", amount: 4.25 }],
-      taxes: [{ name: "State Tax", rate: 6.25 }, { name: "Municipal Tax", rate: 2.50 }],
-    });
+    setBillingRates(defaultBillingRates);
     setGoogleClientId("");
     setGoogleClientSecret("");
     setOpenaiApiKey("");
@@ -748,17 +739,14 @@ export default function SettingsPage() {
       if (response.ok) {
         const data = await response.json();
         setConnectionStatus(prev => ({ ...prev, ha: 'connected' }));
-        haConnectionSettings.setSetting("isConnected", true);
         toast.success('Home Assistant connection successful!');
       } else {
         const error = await response.json().catch(() => ({ message: 'Connection failed' }));
         setConnectionStatus(prev => ({ ...prev, ha: 'disconnected' }));
-        haConnectionSettings.setSetting("isConnected", false);
         toast.error(`HA Connection failed: ${error.message}`);
       }
     } catch (error) {
       setConnectionStatus(prev => ({ ...prev, ha: 'disconnected' }));
-      haConnectionSettings.setSetting("isConnected", false);
       toast.error(`HA Connection error: ${error.message}`);
     }
   }, [haUrl, haToken, haTimeout]);
@@ -827,14 +815,12 @@ export default function SettingsPage() {
       if (response.ok) {
         const data = await response.json();
         setConnectionStatus(prev => ({ ...prev, weather: 'configured' }));
-        weatherApiSettings.set("isConfigured", true);
         toast.success('Weather API test successful!');
       } else {
         throw new Error(`HTTP ${response.status}`);
       }
     } catch (error) {
       setConnectionStatus(prev => ({ ...prev, weather: 'not_configured' }));
-      weatherApiSettings.set("isConfigured", false);
       toast.error(`Weather API test failed: ${error.message}`);
     }
   }, [weatherApiKey, weatherLocation, weatherProvider, weatherUnits]);
@@ -842,7 +828,6 @@ export default function SettingsPage() {
   const testEnergyConnection = useCallback(async () => {
     if (energyProvider === 'manual') {
       setConnectionStatus(prev => ({ ...prev, energy: 'configured' }));
-      energyApiSettings.set("isConfigured", true);
       toast.success('Manual energy configuration is always ready');
       return;
     }
@@ -861,16 +846,12 @@ export default function SettingsPage() {
 
     try {
       // Mock test for now - in real impl, call respective APIs
-      // For utility_api: fetch('/api/energy/test-utility', { body: { key: utilityApiKey } })
-      // For sense: fetch('/api/energy/test-sense', { body: { email, password } })
       await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
 
       setConnectionStatus(prev => ({ ...prev, energy: 'configured' }));
-      energyApiSettings.set("isConfigured", true);
       toast.success(`${energyProvider.replace('_', ' ')} connection successful!`);
     } catch (error) {
       setConnectionStatus(prev => ({ ...prev, energy: 'not_configured' }));
-      energyApiSettings.set("isConfigured", false);
       toast.error(`${energyProvider.replace('_', ' ')} test failed`);
     }
   }, [energyProvider, utilityApiKey, senseEmail, sensePassword]);
