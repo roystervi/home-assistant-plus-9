@@ -97,6 +97,14 @@ interface BillingRateStructure {
   }>;
 }
 
+interface WeatherLocation {
+  lat: number;
+  lon: number;
+  city: string;
+  country: string;
+  locationKey?: string;  // For AccuWeather
+}
+
 export default function Settings() {
   // Home Assistant Connection State (Persistent)
   const [haUrl, setHaUrl] = useState(() => haConnectionSettings.getSetting("url"));
@@ -108,7 +116,7 @@ export default function Settings() {
   const [weatherApiKey, setWeatherApiKey] = useState(() => weatherApiSettings.getSetting("apiKey"));
   const [weatherLocation, setWeatherLocation] = useState(() => {
     const stored = weatherApiSettings.getSetting("location");
-    return stored || { lat: 0, lon: 0, city: "", country: "" };
+    return stored || { lat: 0, lon: 0, city: "", country: "", locationKey: "" };
   });
   const [weatherUnits, setWeatherUnits] = useState(() => weatherApiSettings.getSetting("units"));
 
@@ -394,6 +402,11 @@ export default function Settings() {
       return;
     }
 
+    if (weatherProvider !== "ha_integration" && (!weatherLocation.lat || !weatherLocation.lon)) {
+      toast.error("Please set your location coordinates first");
+      return;
+    }
+
     setConnectionStatus(prev => ({ ...prev, weather: "testing" }));
 
     try {
@@ -408,7 +421,30 @@ export default function Settings() {
           testUrl = `https://api.weatherapi.com/v1/current.json?key=${weatherApiKey}&q=${weatherLocation.lat},${weatherLocation.lon}`;
           break;
         case "accuweather":
-          testUrl = `https://dataservice.accuweather.com/currentconditions/v1/${weatherLocation.lat},${weatherLocation.lon}?apikey=${weatherApiKey}`;
+          if (!weatherLocation.locationKey) {
+            // First get location key if not set
+            const searchResponse = await fetch(
+              `https://dataservice.accuweather.com/locations/v1/geoposition/search?apikey=${weatherApiKey}&q=${weatherLocation.lat},${weatherLocation.lon}`
+            );
+            
+            if (!searchResponse.ok) {
+              throw new Error(`Failed to get AccuWeather location key: HTTP ${searchResponse.status}`);
+            }
+            
+            const searchData = await searchResponse.json();
+            const locationKey = searchData.key;
+            
+            if (!locationKey) {
+              throw new Error("AccuWeather location not found");
+            }
+            
+            // Update location with key and persist
+            const updatedLocation = { ...weatherLocation, locationKey };
+            setWeatherLocation(updatedLocation);
+            weatherApiSettings.setSetting("location", updatedLocation);
+          }
+          
+          testUrl = `https://dataservice.accuweather.com/currentconditions/v1/${weatherLocation.locationKey || ''}?apikey=${weatherApiKey}&details=true`;
           break;
         case "ha_integration":
           testUrl = `${haUrl}/api/states/weather.home`;
@@ -419,17 +455,69 @@ export default function Settings() {
       const response = await fetch(testUrl, { headers });
 
       if (response.ok) {
+        const data = await response.json();
+        
+        // Basic validation for each provider
+        switch (weatherProvider) {
+          case "openweathermap":
+            if (!data.main || typeof data.main.temp !== 'number') {
+              throw new Error("Invalid weather data response");
+            }
+            break;
+          case "weatherapi":
+            if (!data.current || typeof data.current.temp_f !== 'number') {
+              throw new Error("Invalid weather data response");
+            }
+            break;
+          case "accuweather":
+            if (!Array.isArray(data) || data.length === 0 || !data[0].Temperature) {
+              throw new Error("Invalid weather data response");
+            }
+            break;
+          case "ha_integration":
+            if (data.state === 'unavailable' || !data.attributes) {
+              throw new Error("Weather entity not available in Home Assistant");
+            }
+            break;
+        }
+        
         setConnectionStatus(prev => ({ ...prev, weather: "configured" }));
         weatherApiSettings.setSetting("isConfigured", true);
         weatherApiSettings.setSetting("lastUpdate", new Date().toISOString());
-        toast.success(`${weatherProvider} weather API connected successfully`);
+        
+        // Show sample data in toast
+        let sampleTemp = "";
+        switch (weatherProvider) {
+          case "openweathermap":
+            sampleTemp = `${data.main.temp}°${weatherUnits === 'imperial' ? 'F' : 'C'}`;
+            break;
+          case "weatherapi":
+            sampleTemp = `${data.current.temp_f || data.current.temp_c}°F`;
+            break;
+          case "accuweather":
+            sampleTemp = `${data[0].Temperature.Imperial.Value}°F`;
+            break;
+          case "ha_integration":
+            sampleTemp = `${data.attributes.temperature || 'N/A'}°`;
+            break;
+        }
+        
+        toast.success(`${weatherProvider} weather API connected successfully! Current temp: ${sampleTemp}`);
       } else {
-        throw new Error(`HTTP ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}...`);
       }
     } catch (error: any) {
       setConnectionStatus(prev => ({ ...prev, weather: "not_configured" }));
       weatherApiSettings.setSetting("isConfigured", false);
-      toast.error(`Weather API test failed: ${error.message}`);
+      
+      let errorMsg = error.message;
+      if (errorMsg.includes('401')) errorMsg = 'Invalid API key - please check your key';
+      if (errorMsg.includes('403')) errorMsg = 'Access forbidden - check API key permissions';
+      if (errorMsg.includes('404')) errorMsg = 'Location not found or invalid endpoint';
+      if (errorMsg.includes('quota')) errorMsg = 'API quota exceeded';
+      
+      toast.error(`Weather API test failed: ${errorMsg}`);
     }
   };
 
@@ -501,36 +589,74 @@ export default function Settings() {
           toast.dismiss(loadingToast);
           const { latitude, longitude } = position.coords;
           
-          if (weatherApiKey && weatherProvider === "openweathermap") {
+          let newLocation = { lat: latitude, lon: longitude, city: "", country: "", locationKey: "" };
+          
+          if (weatherApiKey && weatherProvider !== "ha_integration") {
             try {
-              const response = await fetch(
-                `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${weatherApiKey}`
-              );
+              let city = "Unknown";
+              let country = "Unknown";
+              let locationKey = "";
               
-              if (response.ok) {
-                const data = await response.json();
-                if (data.length > 0) {
-                  setWeatherLocation({
-                    lat: latitude,
-                    lon: longitude,
-                    city: data[0].name,
-                    country: data[0].country
-                  });
-                  toast.success(`Location detected: ${data[0].name}, ${data[0].country}`);
-                  return;
-                }
+              switch (weatherProvider) {
+                case "openweathermap":
+                  const owmResponse = await fetch(
+                    `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${weatherApiKey}`
+                  );
+                  
+                  if (owmResponse.ok) {
+                    const owmData = await owmResponse.json();
+                    if (owmData.length > 0) {
+                      city = owmData[0].name;
+                      country = owmData[0].country;
+                    }
+                  }
+                  break;
+                  
+                case "weatherapi":
+                  // WeatherAPI reverse geocoding
+                  const wapResponse = await fetch(
+                    `https://api.weatherapi.com/v1/search.json?key=${weatherApiKey}&q=${latitude},${longitude}`
+                  );
+                  
+                  if (wapResponse.ok) {
+                    const wapData = await wapResponse.json();
+                    if (wapData.length > 0) {
+                      city = wapData[0].name;
+                      country = wapData[0].region || wapData[0].country;
+                    }
+                  }
+                  break;
+                  
+                case "accuweather":
+                  // AccuWeather geoposition search
+                  const accuResponse = await fetch(
+                    `https://dataservice.accuweather.com/locations/v1/geoposition/search?apikey=${weatherApiKey}&q=${latitude},${longitude}`
+                  );
+                  
+                  if (accuResponse.ok) {
+                    const accuData = await accuResponse.json();
+                    city = accuData.localizedName || accuData.parent?.localizedName || "Unknown";
+                    country = accuData.country?.localizedName || "Unknown";
+                    locationKey = accuData.key;
+                  }
+                  break;
               }
+              
+              newLocation = { ...newLocation, city, country, locationKey };
             } catch (error) {
-              console.warn("Reverse geocoding failed:", error);
+              console.warn("Reverse geocoding failed for", weatherProvider, ":", error);
             }
           }
           
-          setWeatherLocation(prev => ({
-            ...prev,
-            lat: latitude,
-            lon: longitude
-          }));
-          toast.success(`Location coordinates detected: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+          setWeatherLocation(newLocation);
+          
+          const locationText = newLocation.city ? 
+            `${newLocation.city}, ${newLocation.country}` : 
+            `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+          toast.success(`Location detected: ${locationText}`);
+          
+          // Persist the location
+          weatherApiSettings.setSetting("location", newLocation);
         },
         (error) => {
           toast.dismiss(loadingToast);
@@ -1220,6 +1346,11 @@ export default function Settings() {
                       <p className="text-sm">
                         <strong>Location:</strong> {weatherLocation.city}, {weatherLocation.country}
                       </p>
+                      {weatherProvider === "accuweather" && weatherLocation.locationKey && (
+                        <p className="text-xs text-muted-foreground">
+                          Location Key: {weatherLocation.locationKey}
+                        </p>
+                      )}
                       <p className="text-xs text-muted-foreground">
                         Coordinates: {weatherLocation.lat.toFixed(4)}, {weatherLocation.lon.toFixed(4)}
                       </p>
