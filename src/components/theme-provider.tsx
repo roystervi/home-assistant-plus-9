@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react"
 import { toast } from "sonner"
+import { authClient } from "@/lib/auth-client"
 
 interface BackgroundContextType {
   customBgColor: string | null;
@@ -23,6 +24,8 @@ interface BackgroundContextType {
 const BackgroundContext = createContext<BackgroundContextType | undefined>(undefined);
 
 export function BackgroundProvider({ children }: { children: ReactNode }) {
+  const { data: session } = authClient.useSession();
+
   // Theme state
   const [theme, setThemeState] = useState<"light" | "dark" | "system">("system");
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
@@ -156,6 +159,8 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
   }, [backgroundMode, customBgColor, backgroundImage]);
 
   // Save function
+  const [isSaving, setIsSaving] = useState(false);
+
   const saveBackgroundSettings = useCallback(async () => {
     if (!session?.user?.id) {
       toast.error("Please log in to save background settings");
@@ -202,8 +207,6 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
       setIsSaving(false);
     }
   }, [session?.user?.id, backgroundMode, customBgColor, backgroundImage]);
-
-  const [isSaving, setIsSaving] = useState(false);
 
   const value: BackgroundContextType = {
     theme,

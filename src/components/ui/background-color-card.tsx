@@ -4,8 +4,7 @@ import React, { useState, useEffect, useCallback } from "react"
 import { CheckCircle, RotateCw, Palette, Image as ImageIcon, Upload, Link, Settings } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useSession } from "@/lib/auth-client"
-
+import { authClient } from "@/lib/auth-client"
 import { useTheme } from "@/components/theme-provider"
 
 const backgroundOptions = [
@@ -36,7 +35,7 @@ export function BackgroundColorCard() {
     isSaving
   } = useTheme()
 
-  const { data: session } = useSession();
+  const { data: session } = authClient.useSession();
 
   const [imageMode, setImageMode] = useState<"upload" | "url">("upload")
   
