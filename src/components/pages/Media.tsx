@@ -116,6 +116,7 @@ export default function MediaPage() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRef = useRef<HTMLMediaElement>(null); // Unified ref for audio/video
 
   // Load data from localStorage on mount
   useEffect(() => {
@@ -159,13 +160,37 @@ export default function MediaPage() {
       setCurrentMedia(media);
     }
     setIsPlaying(true);
+    
+    // Set src on the appropriate element based on type
+    if (media.type.startsWith('audio/')) {
+      const audio = audioRef.current;
+      if (audio) {
+        audio.src = media.url;
+        audio.load();
+        audio.play().catch(err => toast.error(`Playback failed: ${err.message}`));
+        setCurrentMedia({ ...media, type: 'audio' });
+      }
+    } else if (media.type.startsWith('video/')) {
+      const video = videoRef.current;
+      if (video) {
+        video.src = media.url;
+        video.load();
+        video.play().catch(err => toast.error(`Playback failed: ${err.message}`));
+        // For videos, we might want to show it in UI later
+        setCurrentMedia({ ...media, type: 'video' });
+      }
+    }
     toast.success(`Playing: ${media.name}`);
   }, [currentMedia]);
 
   const handlePause = useCallback(() => {
     setIsPlaying(false);
-    if (audioRef.current) audioRef.current.pause();
-    if (videoRef.current) videoRef.current.pause();
+    if (mediaRef.current) {
+      mediaRef.current.pause();
+    } else {
+      if (audioRef.current) audioRef.current.pause();
+      if (videoRef.current) videoRef.current.pause();
+    }
   }, []);
 
   const handleStop = useCallback(() => {
@@ -174,11 +199,32 @@ export default function MediaPage() {
     setCurrentMedia(null);
     if (audioRef.current) {
       audioRef.current.pause();
+      audioRef.current.src = '';
       audioRef.current.currentTime = 0;
     }
     if (videoRef.current) {
       videoRef.current.pause();
+      videoRef.current.src = '';
       videoRef.current.currentTime = 0;
+    }
+  }, []);
+
+  const handleTimeUpdate = useCallback((e: React.SyntheticEvent<HTMLMediaElement>) => {
+    setCurrentTime(e.currentTarget.currentTime);
+  }, []);
+
+  const handleLoadedMetadata = useCallback((e: React.SyntheticEvent<HTMLMediaElement>) => {
+    setDuration(e.currentTarget.duration);
+  }, []);
+
+  const handleSeekChange = useCallback((value: number[]) => {
+    const newTime = value[0];
+    setCurrentTime(newTime);
+    if (mediaRef.current) {
+      mediaRef.current.currentTime = newTime;
+    } else {
+      if (audioRef.current) audioRef.current.currentTime = newTime;
+      if (videoRef.current) videoRef.current.currentTime = newTime;
     }
   }, []);
 
@@ -373,58 +419,81 @@ export default function MediaPage() {
       {/* Now Playing Bar */}
       {currentMedia && (
         <Card className="p-4 bg-accent/20 border-accent">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => handlePlay(currentMedia)}
-                disabled={isPlaying}
-              >
+          <div className="space-y-4">
+            {/* Media Controls */}
+            <div className="flex items-center gap-4">
+              <Button size="sm" variant="ghost" onClick={() => handlePlay(currentMedia)} disabled={isPlaying}>
                 <Play className="h-4 w-4" />
               </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handlePause}
-                disabled={!isPlaying}
-              >
+              <Button size="sm" variant="ghost" onClick={handlePause} disabled={!isPlaying}>
                 <Pause className="h-4 w-4" />
               </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleStop}
-              >
+              <Button size="sm" variant="ghost" onClick={handleStop}>
                 <Square className="h-4 w-4" />
               </Button>
-            </div>
-            
-            <div className="flex-1">
-              <p className="font-medium">{currentMedia.name}</p>
-              {currentMedia.artist && (
-                <p className="text-sm text-muted-foreground">{currentMedia.artist}</p>
-              )}
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={toggleMute}
-              >
-                {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-              </Button>
-              <div className="w-24">
+              
+              {/* Progress Bar */}
+              <div className="flex-1 mx-4">
+                <Slider
+                  value={[currentTime]}
+                  max={duration}
+                  step={1}
+                  onValueChange={handleSeekChange}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{Math.floor(currentTime / 60)}:{Math.floor(currentTime % 60).toString().padStart(2, '0')}</span>
+                  <span>{Math.floor(duration / 60)}:{Math.floor(duration % 60).toString().padStart(2, '0')}</span>
+                </div>
+              </div>
+              
+              {/* Volume */}
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="ghost" onClick={toggleMute}>
+                  {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                </Button>
                 <Slider
                   value={[volume]}
-                  onValueChange={handleVolumeChange}
                   max={100}
                   step={1}
+                  onValueChange={handleVolumeChange}
+                  className="w-20"
+                />
+                <span className="text-xs text-muted-foreground w-8">{volume}%</span>
+              </div>
+            </div>
+            
+            {/* Media Info */}
+            <div className="flex items-center gap-4">
+              <div className="flex-shrink-0">
+                {currentMedia.type === 'video' ? (
+                  // For videos, show a small preview or thumbnail
+                  <img src={currentMedia.thumbnail || ''} alt="" className="w-16 h-12 object-cover rounded" />
+                ) : (
+                  <div className="w-16 h-16 bg-muted rounded flex items-center justify-center">
+                    <Music className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="font-medium">{currentMedia.name}</p>
+                {currentMedia.artist && <p className="text-sm text-muted-foreground">{currentMedia.artist}</p>}
+              </div>
+            </div>
+            
+            {/* Video Preview - Show inline for videos */}
+            {currentMedia && currentMedia.type === 'video' && (
+              <div className="mt-4">
+                <video
+                  ref={videoRef}
+                  className="w-full max-w-md mx-auto rounded-lg shadow-lg"
+                  controls
+                  onTimeUpdate={handleTimeUpdate}
+                  onLoadedMetadata={handleLoadedMetadata}
+                  onEnded={() => setIsPlaying(false)}
                 />
               </div>
-              <span className="text-sm text-muted-foreground w-8">{volume}%</span>
-            </div>
+            )}
           </div>
         </Card>
       )}
@@ -800,22 +869,17 @@ export default function MediaPage() {
       {/* Hidden audio/video elements */}
       <audio
         ref={audioRef}
-        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-        onDurationChange={(e) => setDuration(e.currentTarget.duration)}
-        onEnded={() => {
-          setIsPlaying(false);
-          // Auto-play next track logic could go here
-        }}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onEnded={() => setIsPlaying(false)}
         className="hidden"
       />
       
       <video
         ref={videoRef}
-        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-        onDurationChange={(e) => setDuration(e.currentTarget.duration)}
-        onEnded={() => {
-          setIsPlaying(false);
-        }}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onEnded={() => setIsPlaying(false)}
         className="hidden"
       />
     </div>
