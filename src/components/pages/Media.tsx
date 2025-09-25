@@ -82,6 +82,61 @@ interface YoutubeVideo {
   channelName: string;
 }
 
+// Add proper IndexedDB utilities
+const DB_NAME = 'MediaDB';
+const DB_VERSION = 1;
+const MUSIC_STORE = 'musicFiles';
+const VIDEO_STORE = 'videoFiles';
+
+const openDB = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(MUSIC_STORE)) {
+        db.createObjectStore(MUSIC_STORE, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(VIDEO_STORE)) {
+        db.createObjectStore(VIDEO_STORE, { keyPath: 'id' });
+      }
+    };
+  });
+};
+
+const saveFilesToIDB = async (storeName: string, files: MediaFile[]): Promise<void> => {
+  if (!('indexedDB' in window)) {
+    throw new Error('IndexedDB not supported');
+  }
+  const db = await openDB();
+  const tx = db.transaction(storeName, 'readwrite');
+  const store = tx.objectStore(storeName);
+  await store.clear();
+  for (const file of files) {
+    await store.add(file);
+  }
+};
+
+const loadFilesFromIDB = async (storeName: string): Promise<MediaFile[]> => {
+  if (!('indexedDB' in window)) {
+    return [];
+  }
+  const db = await openDB();
+  const tx = db.transaction(storeName, 'readonly');
+  const store = tx.objectStore(storeName);
+  const allFiles = await store.getAll();
+  return allFiles;
+};
+
+const deleteFileFromIDB = async (storeName: string, id: string): Promise<void> => {
+  if (!('indexedDB' in window)) return;
+  const db = await openDB();
+  const tx = db.transaction(storeName, 'readwrite');
+  const store = tx.objectStore(storeName);
+  await store.delete(id);
+};
+
 export default function MediaPage() {
   const [activeTab, setActiveTab] = useState("music");
   
@@ -117,53 +172,155 @@ export default function MediaPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRef = useRef<HTMLMediaElement>(null); // Unified ref for audio/video
 
-  // Load data from localStorage on mount
+  // Load data from IndexedDB on mount with localStorage fallback
   useEffect(() => {
-    try {
-      const savedMusic = localStorage.getItem("media-music-files");
-      if (savedMusic) setMusicFiles(JSON.parse(savedMusic));
-      
-      const savedVideos = localStorage.getItem("media-video-files");
-      if (savedVideos) setVideoFiles(JSON.parse(savedVideos));
-      
-      const savedPlaylists = localStorage.getItem("media-playlists");
-      if (savedPlaylists) setPlaylists(JSON.parse(savedPlaylists));
-      
-      const savedStations = localStorage.getItem("media-stream-stations");
-      if (savedStations) setStreamStations(JSON.parse(savedStations));
-      
-      const savedChannels = localStorage.getItem("media-youtube-channels");
-      if (savedChannels) setYoutubeChannels(JSON.parse(savedChannels));
-    } catch (e) {
-      console.error("Failed to load media data:", e);
-      localStorage.removeItem("media-music-files");
-      localStorage.removeItem("media-video-files");
-      localStorage.removeItem("media-playlists");
-      localStorage.removeItem("media-stream-stations");
-      localStorage.removeItem("media-youtube-channels");
-    }
+    const loadData = async () => {
+      try {
+        const [music, videos] = await Promise.all([
+          loadFilesFromIDB(MUSIC_STORE),
+          loadFilesFromIDB(VIDEO_STORE)
+        ]);
+        setMusicFiles(music);
+        setVideoFiles(videos);
+
+        // Load small data from localStorage
+        try {
+          const savedPlaylists = localStorage.getItem("media-playlists");
+          if (savedPlaylists) setPlaylists(JSON.parse(savedPlaylists));
+          
+          const savedStations = localStorage.getItem("media-stream-stations");
+          if (savedStations) setStreamStations(JSON.parse(savedStations));
+          
+          const savedChannels = localStorage.getItem("media-youtube-channels");
+          if (savedChannels) setYoutubeChannels(JSON.parse(savedChannels));
+        } catch (smallErr) {
+          console.error("Failed to load small data:", smallErr);
+        }
+      } catch (idbErr) {
+        console.error("IndexedDB load failed:", idbErr);
+        toast.error("Using local storage as fallback. Large files may not persist.");
+        // Fallback to localStorage for music/videos with limit
+        try {
+          const savedMusic = localStorage.getItem("media-music-files");
+          if (savedMusic) {
+            const parsed = JSON.parse(savedMusic);
+            setMusicFiles(Array.isArray(parsed) ? parsed.slice(0, 20) : []); // Limit to avoid quota
+          }
+          
+          const savedVideos = localStorage.getItem("media-video-files");
+          if (savedVideos) {
+            const parsed = JSON.parse(savedVideos);
+            setVideoFiles(Array.isArray(parsed) ? parsed.slice(0, 10) : []); // Stricter for videos
+          }
+        } catch (fallbackErr) {
+          console.error("LocalStorage fallback failed:", fallbackErr);
+          setMusicFiles([]);
+          setVideoFiles([]);
+        }
+      }
+    };
+    loadData();
   }, []);
 
-  // Save data to localStorage
+  // Save music files to IndexedDB
   useEffect(() => {
-    localStorage.setItem("media-music-files", JSON.stringify(musicFiles));
+    if (musicFiles.length === 0) return;
+    const saveMusic = async () => {
+      try {
+        await saveFilesToIDB(MUSIC_STORE, musicFiles);
+        // Try to sync small subset to localStorage
+        try {
+          const smallSubset = musicFiles.slice(0, 5); // Only recent files
+          localStorage.setItem("media-music-files-recent", JSON.stringify(smallSubset));
+        } catch (lsErr) {
+          // Ignore localStorage errors
+        }
+      } catch (err) {
+        console.error("Failed to save music files:", err);
+        toast.error("Cannot save music files to storage. Files may not persist across sessions.");
+        // Try localStorage with aggressive limit
+        try {
+          localStorage.setItem("media-music-files", JSON.stringify(musicFiles.slice(0, 5)));
+        } catch (lsErr) {
+          // Silent fail
+        }
+      }
+    };
+    saveMusic();
   }, [musicFiles]);
 
+  // Save video files to IndexedDB
   useEffect(() => {
-    localStorage.setItem("media-video-files", JSON.stringify(videoFiles));
+    if (videoFiles.length === 0) return;
+    const saveVideos = async () => {
+      try {
+        await saveFilesToIDB(VIDEO_STORE, videoFiles);
+        // Try to sync small subset to localStorage
+        try {
+          const smallSubset = videoFiles.slice(0, 3);
+          localStorage.setItem("media-video-files-recent", JSON.stringify(smallSubset));
+        } catch (lsErr) {
+          // Ignore
+        }
+      } catch (err) {
+        console.error("Failed to save video files:", err);
+        toast.error("Cannot save video files to storage. Files may not persist across sessions.");
+        // Try localStorage with very strict limit
+        try {
+          localStorage.setItem("media-video-files", JSON.stringify(videoFiles.slice(0, 3)));
+        } catch (lsErr) {
+          // Silent fail
+        }
+      }
+    };
+    saveVideos();
   }, [videoFiles]);
 
+  // Save small data to localStorage
   useEffect(() => {
-    localStorage.setItem("media-playlists", JSON.stringify(playlists));
+    try {
+      localStorage.setItem("media-playlists", JSON.stringify(playlists));
+    } catch (e) {
+      console.error("Failed to save playlists:", e);
+    }
   }, [playlists]);
 
   useEffect(() => {
-    localStorage.setItem("media-stream-stations", JSON.stringify(streamStations));
+    try {
+      localStorage.setItem("media-stream-stations", JSON.stringify(streamStations));
+    } catch (e) {
+      console.error("Failed to save stream stations:", e);
+    }
   }, [streamStations]);
 
   useEffect(() => {
-    localStorage.setItem("media-youtube-channels", JSON.stringify(youtubeChannels));
+    try {
+      localStorage.setItem("media-youtube-channels", JSON.stringify(youtubeChannels));
+    } catch (e) {
+      console.error("Failed to save YouTube channels:", e);
+    }
   }, [youtubeChannels]);
+
+  // Update remove handlers to also delete from IDB
+  const removeMusicFile = useCallback((id: string) => {
+    setMusicFiles(prev => {
+      const newFiles = prev.filter(f => f.id !== id);
+      // Immediately delete from IDB
+      deleteFileFromIDB(MUSIC_STORE, id).catch(console.error);
+      return newFiles;
+    });
+    toast.success("Track removed");
+  }, []);
+
+  const removeVideoFile = useCallback((id: string) => {
+    setVideoFiles(prev => {
+      const newFiles = prev.filter(f => f.id !== id);
+      // Immediately delete from IDB
+      deleteFileFromIDB(VIDEO_STORE, id).catch(console.error);
+      return newFiles;
+    });
+    toast.success("Video removed");
+  }, []);
 
   // Media controls
   const handlePlay = useCallback((media: MediaFile) => {
@@ -605,10 +762,7 @@ export default function MediaPage() {
                     media={media}
                     type="music"
                     onPlay={() => handlePlay(media)}
-                    onRemove={() => {
-                      setMusicFiles(prev => prev.filter(f => f.id !== media.id));
-                      toast.success("Track removed");
-                    }}
+                    onRemove={() => removeMusicFile(media.id)}
                   />
                 ))}
               </div>
@@ -650,10 +804,7 @@ export default function MediaPage() {
                     media={media}
                     type="video"
                     onPlay={() => handlePlay(media)}
-                    onRemove={() => {
-                      setVideoFiles(prev => prev.filter(f => f.id !== media.id));
-                      toast.success("Video removed");
-                    }}
+                    onRemove={() => removeVideoFile(media.id)}
                   />
                 ))}
               </div>
