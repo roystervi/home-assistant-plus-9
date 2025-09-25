@@ -415,9 +415,6 @@ export default function Page() {
             <div className="font-medium">
               {formatTime(currentTime)}
             </div>
-            <div className={`text-sm ${displayMode === "phone" ? "text-muted-foreground font-medium" : "text-muted-foreground"}`}>
-              Server: {formatTime(serverTime)}
-            </div>
             {displayMode !== "phone" && (
               <div className="text-muted-foreground">
                 {formatDate(currentTime)}
@@ -426,7 +423,8 @@ export default function Page() {
             <div className="flex items-center gap-2">
               {weather ? (
                 <>
-                  <span>{weather.temperature}°F</span>
+                  <span>{weather.temperature}°</span>
+                  <span className="text-muted-foreground text-xs capitalize">{weather.condition}</span>
                 </>
               ) : weatherError ? (
                 <span className="text-destructive text-xs">Offline</span>
