@@ -619,7 +619,7 @@ export default function SettingsPage() {
         body: JSON.stringify({ 
           url: haUrl, 
           token: haToken, 
-          entities: ['update.entity_id', 'conversation.process'] 
+          entities: ['update.home_assistant_core_update', 'sensor.last_boot', 'sensor.uptime', 'binary_sensor.home_assistant_started']  // Fixed: Use valid default status entities
         }),
       });
 
@@ -628,10 +628,12 @@ export default function SettingsPage() {
         setHaStatusStates(data.entities || {});
         toast.success('HA status loaded');
       } else {
-        toast.error('Failed to load HA status');
+        const errorText = await response.text();
+        toast.error(`Failed to load HA status: ${errorText}`);
       }
     } catch (error) {
-      toast.error(`Error loading HA status: ${error.message}`);
+      console.error('Error fetching HA status:', error);
+      toast.error(`Error loading HA status: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoadingStates(false);
     }
