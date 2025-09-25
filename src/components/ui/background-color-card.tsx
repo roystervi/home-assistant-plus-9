@@ -5,7 +5,6 @@ import { CheckCircle, RotateCw, Palette, Image as ImageIcon, Upload, Link, Setti
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/components/theme-provider"
-import { useSession } from "@/lib/auth-client"
 
 const backgroundOptions = [
   { id: "default", name: "Default", description: "Theme-based colors", icon: Settings },
@@ -35,7 +34,7 @@ export function BackgroundColorCard() {
     isSaving
   } = useTheme()
 
-  const { data: session } = useSession();
+  const session = null;
 
   const [imageMode, setImageMode] = useState<"upload" | "url">("upload")
   
@@ -351,27 +350,14 @@ export function BackgroundColorCard() {
           <span>Reset All</span>
         </button>
 
-        {/* Save Button - Only show if changes made or not default */}
-        { (backgroundMode !== "default" || customBgColor || backgroundImage) && session && (
+        {/* Save Button - Only show if changes made or not default - always disabled without auth */}
+        { (backgroundMode !== "default" || customBgColor || backgroundImage) && (
           <Button
             onClick={saveBackgroundSettings}
-            disabled={isSaving}
+            disabled={true}
             className="w-full mt-4"
-            variant="default"
+            variant="secondary"
           >
-            {isSaving ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Saving...
-              </>
-            ) : (
-              "Save to Account"
-            )}
-          </Button>
-        )}
-
-        { (backgroundMode !== "default" || customBgColor || backgroundImage) && !session && (
-          <Button disabled className="w-full mt-4" variant="secondary">
             Log in to save settings
           </Button>
         )}
