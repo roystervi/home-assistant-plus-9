@@ -787,10 +787,30 @@ export default function SettingsPage() {
                 <p className='text-muted-foreground'>Configure connections, APIs, services, and preferences</p>
               </div>
             </div>
-            <Button variant='outline' size='sm' onClick={exportBackup}>
-              <FolderSync className='h-4 w-4 mr-2' />
-              Export Backup
-            </Button>
+            <div className='flex gap-2'>
+              <Button 
+                onClick={saveConnections} 
+                disabled={isLoadingStates}
+                variant='default' 
+                size='sm'
+              >
+                {isLoadingStates ? (
+                  <>
+                    <RefreshCw className='h-4 w-4 mr-2 animate-spin' />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className='h-4 w-4 mr-2' />
+                    Save Connections
+                  </>
+                )}
+              </Button>
+              <Button variant='outline' size='sm' onClick={exportBackup}>
+                <FolderSync className='h-4 w-4 mr-2' />
+                Export Backup
+              </Button>
+            </div>
           </div>
 
           {/* Connection Status Indicators */}
@@ -1383,6 +1403,26 @@ export default function SettingsPage() {
                   </Select>
                 </div>
               </div>
+
+              {energyProvider !== 'manual' && (
+                <Button 
+                  onClick={testEnergyConnection}
+                  disabled={connectionStatus.energy === 'testing' || (energyProvider === 'utility_api' && !utilityApiKey) || (energyProvider === 'sense' && (!senseEmail || !sensePassword))}
+                  className='w-full'
+                >
+                  {connectionStatus.energy === 'testing' ? (
+                    <>
+                      <Zap className='h-4 w-4 mr-2 animate-spin' />
+                      Testing Energy Connection...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className='h-4 w-4 mr-2' />
+                      Test Energy Connection
+                    </>
+                  )}
+                </Button>
+              )}
 
               <div className='space-y-6'>
                 <div>
