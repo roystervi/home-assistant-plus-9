@@ -98,8 +98,27 @@ export default function Page() {
     { id: "2", text: "Living room window has been open for 2 hours", type: "warning" },
     { id: "3", text: "Energy usage 15% below average today", type: "info" },
   ]);
+  const [serverTime, setServerTime] = useState<Date>(new Date());
 
   // Move fetchWeather inside component
+  const fetchServerTime = useCallback(async () => {
+    try {
+      const response = await fetch('/api/server-time');
+      if (response.ok) {
+        const data = await response.json();
+        setServerTime(new Date(data.timestamp));
+      }
+    } catch (error) {
+      console.error('Server time fetch failed:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchServerTime();
+    const interval = setInterval(fetchServerTime, 60000); // Every minute
+    return () => clearInterval(interval);
+  }, [fetchServerTime]);
+
   const fetchWeather = useCallback(async () => {
     setWeatherError(false);
     setWeather(null); // Start with null to show loading/offline
@@ -121,16 +140,16 @@ export default function Page() {
 
       switch (settings.provider) {
         case "openweathermap":
-          url = `https://api.openweathermap.org/data/2.5/weather?lat=${settings.location.lat}&lon=${settings.location.lon}&appid=${settings.apiKey}&units=${settings.units}`;
+          url = `https://api.openweathermap.org/data/2.5/weather?lat=${settings.location.lat}&lon=${settings.location.lon}&appid=${settings.apiKey}&units=imperial`; // Force imperial
           break;
         case "weatherapi":
-          url = `https://api.weatherapi.com/v1/current.json?key=${settings.apiKey}&q=${settings.location.lat},${settings.location.lon}`;
+          url = `https://api.weatherapi.com/v1/current.json?key=${settings.apiKey}&q=${settings.location.lat},${settings.location.lon}`; // Always F available
           break;
         case "accuweather":
           if (!settings.location.locationKey) {
             throw new Error("Location key required for AccuWeather");
           }
-          url = `https://dataservice.accuweather.com/currentconditions/v1/${settings.location.locationKey}?apikey=${settings.apiKey}&details=true`;
+          url = `https://dataservice.accuweather.com/currentconditions/v1/${settings.location.locationKey}?apikey=${settings.apiKey}&details=true`; // Always Imperial
           break;
         default:
           throw new Error("Unsupported weather provider");
@@ -146,7 +165,7 @@ export default function Page() {
       // Parse based on provider
       switch (settings.provider) {
         case "openweathermap":
-          temp = Math.round(data.main.temp);
+          temp = Math.round(data.main.temp); // Now imperial/F
           condition = data.weather[0].description;
           const sunriseDate = new Date(data.sys.sunrise * 1000);
           const sunsetDate = new Date(data.sys.sunset * 1000);
@@ -154,14 +173,14 @@ export default function Page() {
           sunsetTime = sunsetDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
           break;
         case "weatherapi":
-          temp = settings.units === "imperial" ? Math.round(data.current.temp_f) : Math.round(data.current.temp_c);
+          temp = Math.round(data.current.temp_f); // Force F
           condition = data.current.condition.text;
           sunriseTime = "6:42 AM"; // Placeholder - no sunrise/sunset in current endpoint
           sunsetTime = "7:18 PM"; // Placeholder
           break;
         case "accuweather":
           const accuData = Array.isArray(data) ? data[0] : data;
-          temp = Math.round(accuData.Temperature.Imperial.Value);
+          temp = Math.round(accuData.Temperature.Imperial.Value); // F
           condition = accuData.WeatherText;
           sunriseTime = "6:42 AM"; // Would need separate astronomy call
           sunsetTime = "7:18 PM";
@@ -396,6 +415,9 @@ export default function Page() {
             <div className="font-medium">
               {formatTime(currentTime)}
             </div>
+            <div className={`text-sm ${displayMode === "phone" ? "text-muted-foreground font-medium" : "text-muted-foreground"}`}>
+              Server: {formatTime(serverTime)}
+            </div>
             {displayMode !== "phone" && (
               <div className="text-muted-foreground">
                 {formatDate(currentTime)}
@@ -404,10 +426,7 @@ export default function Page() {
             <div className="flex items-center gap-2">
               {weather ? (
                 <>
-                  <span>{weather.temperature}°</span>
-                  {displayMode !== "phone" && (
-                    <span className="text-muted-foreground">{weather.condition}</span>
-                  )}
+                  <span>{weather.temperature}°F</span>
                 </>
               ) : weatherError ? (
                 <span className="text-destructive text-xs">Offline</span>
