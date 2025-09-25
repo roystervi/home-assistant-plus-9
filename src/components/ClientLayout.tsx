@@ -33,6 +33,8 @@ import {
   Bot
 } from "lucide-react";
 import { weatherApiSettings } from "@/lib/storage";
+import { ThermostatProvider } from "@/contexts/ThermostatContext";
+import { HomeAssistantProvider } from "@/contexts/HomeAssistantContext";
 
 // Theme management
 type Theme = "light" | "dark" | "auto";
@@ -74,11 +76,12 @@ const navigation = [
 ];
 
 export default function ClientLayout({ currentPage, children }: ClientLayoutProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+
   // Move all weather state inside component
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherError, setWeatherError] = useState(false);
-  const router = useRouter();
-  const pathname = usePathname();
   const [theme, setTheme] = useState<Theme>("auto");
   const [displayMode, setDisplayMode] = useState<DisplayMode>("desktop");
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -388,12 +391,6 @@ export default function ClientLayout({ currentPage, children }: ClientLayoutProp
     router.push(route);
   };
 
-  // Client-side only hooks
-  const isClient = typeof window !== "undefined";
-  if (!isClient) {
-    return <div className="min-h-screen bg-background" />;
-  }
-
   return (
     <div className={`min-h-screen bg-background text-foreground transition-colors display-${displayMode}`}>
       {/* Fixed Header */}
@@ -520,12 +517,16 @@ export default function ClientLayout({ currentPage, children }: ClientLayoutProp
           </ScrollArea>
         </nav>
 
-        {/* Main Content Area */}
+        {/* Main Content Area - Wrapped with providers */}
         <main className="flex-1 overflow-y-auto">
           <div className={`container max-w-7xl mx-auto ${layout.padding}`}>
             <div className="grid grid-cols-1">
               <div className="space-y-6">
-                {children}
+                <HomeAssistantProvider>
+                  <ThermostatProvider>
+                    {children}
+                  </ThermostatProvider>
+                </HomeAssistantProvider>
               </div>
             </div>
           </div>
