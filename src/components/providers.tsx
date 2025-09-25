@@ -13,7 +13,6 @@ export function Providers({ children }: { children: ReactNode }) {
     <>
       <BackgroundProvider>
         <ThemeProvider>
-          <ModeToggle />
           {children}
         </ThemeProvider>
       </BackgroundProvider>

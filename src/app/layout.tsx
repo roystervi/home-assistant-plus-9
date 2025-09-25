@@ -26,8 +26,12 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-background font-sans antialiased">
         <Providers>
-          <Toaster />
-          {children}
+          <HomeAssistantProvider>
+            <ThermostatProvider>
+              <Toaster />
+              {children}
+            </ThermostatProvider>
+          </HomeAssistantProvider>
         </Providers>
         <VisualEditsMessenger />
         <ErrorReporter />
