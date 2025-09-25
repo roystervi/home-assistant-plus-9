@@ -171,8 +171,8 @@ export default function Settings() {
 
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     ha: haUrl && haToken ? "connected" : "disconnected",
-    weather: weatherApiKey ? "configured" : "not_configured",
-    energy: "configured",
+    weather: weatherApiSettings.getSetting("isConfigured") ? "configured" : "not_configured",
+    energy: energyApiSettings.getSetting("isConfigured") ? "configured" : "not_configured",
   });
 
   const [backupProgress, setBackupProgress] = useState(0);

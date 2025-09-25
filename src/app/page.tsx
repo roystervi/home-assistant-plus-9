@@ -31,6 +31,7 @@ import {
   Minimize,
   Bot
 } from "lucide-react";
+import { weatherApiSettings } from "@/lib/storage";
 
 // Import all page components
 import Dashboard from "@/components/pages/Dashboard";
@@ -83,23 +84,112 @@ const navigation = [
 ];
 
 export default function Page() {
+  // Move all weather state inside component
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [weatherError, setWeatherError] = useState(false);
   const [currentPage, setCurrentPage] = useState("dashboard");
   const [theme, setTheme] = useState<Theme>("auto");
   const [displayMode, setDisplayMode] = useState<DisplayMode>("desktop");
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [weather, setWeather] = useState<WeatherData>({
-    temperature: 72,
-    condition: "Partly Cloudy",
-    sunrise: "6:42 AM",
-    sunset: "7:18 PM"
-  });
   const [newsItems, setNewsItems] = useState<NewsItem[]>([
     { id: "1", text: "System backup completed successfully", type: "info" },
     { id: "2", text: "Living room window has been open for 2 hours", type: "warning" },
     { id: "3", text: "Energy usage 15% below average today", type: "info" },
   ]);
+
+  // Move fetchWeather inside component
+  const fetchWeather = useCallback(async () => {
+    setWeatherError(false);
+    setWeather(null); // Start with null to show loading/offline
+    
+    const settings = weatherApiSettings.get();
+    
+    if (!settings.apiKey || !settings.provider || settings.location.lat === 0 || settings.provider === "ha_integration" || !settings.isConfigured) {
+      // No config: stay null, will show "Offline" in UI
+      setWeatherError(true); // Treat unconfigured as error/offline
+      return;
+    }
+
+    try {
+      let url = "";
+      let temp = 0;
+      let condition = "";
+      let sunriseTime = "";
+      let sunsetTime = "";
+
+      switch (settings.provider) {
+        case "openweathermap":
+          url = `https://api.openweathermap.org/data/2.5/weather?lat=${settings.location.lat}&lon=${settings.location.lon}&appid=${settings.apiKey}&units=${settings.units}`;
+          break;
+        case "weatherapi":
+          url = `https://api.weatherapi.com/v1/current.json?key=${settings.apiKey}&q=${settings.location.lat},${settings.location.lon}`;
+          break;
+        case "accuweather":
+          if (!settings.location.locationKey) {
+            throw new Error("Location key required for AccuWeather");
+          }
+          url = `https://dataservice.accuweather.com/currentconditions/v1/${settings.location.locationKey}?apikey=${settings.apiKey}&details=true`;
+          break;
+        default:
+          throw new Error("Unsupported weather provider");
+      }
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Parse based on provider
+      switch (settings.provider) {
+        case "openweathermap":
+          temp = Math.round(data.main.temp);
+          condition = data.weather[0].description;
+          const sunriseDate = new Date(data.sys.sunrise * 1000);
+          const sunsetDate = new Date(data.sys.sunset * 1000);
+          sunriseTime = sunriseDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+          sunsetTime = sunsetDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+          break;
+        case "weatherapi":
+          temp = settings.units === "imperial" ? Math.round(data.current.temp_f) : Math.round(data.current.temp_c);
+          condition = data.current.condition.text;
+          sunriseTime = "6:42 AM"; // Placeholder - no sunrise/sunset in current endpoint
+          sunsetTime = "7:18 PM"; // Placeholder
+          break;
+        case "accuweather":
+          const accuData = Array.isArray(data) ? data[0] : data;
+          temp = Math.round(accuData.Temperature.Imperial.Value);
+          condition = accuData.WeatherText;
+          sunriseTime = "6:42 AM"; // Would need separate astronomy call
+          sunsetTime = "7:18 PM";
+          break;
+      }
+
+      // On success, set real data (no mock fallback)
+      setWeather({
+        temperature: temp,
+        condition,
+        sunrise: sunriseTime,
+        sunset: sunsetTime
+      });
+      setWeatherError(false);
+    } catch (error) {
+      console.error("Weather fetch failed:", error);
+      setWeatherError(true);
+      setWeather(null); // No fallback - stay null on error
+      // No toast here to avoid spam
+    }
+  }, []); // No dependencies - settings are fetched inside
+
+  // Fetch weather on mount and every 10 minutes
+  useEffect(() => {
+    fetchWeather();
+    const interval = setInterval(fetchWeather, 10 * 60 * 1000); // Every 10 min
+    return () => clearInterval(interval);
+  }, [fetchWeather]);
 
   // Initialize display mode from localStorage or default
   useEffect(() => {
@@ -149,28 +239,34 @@ export default function Page() {
     
     if (theme === "auto") {
       const now = new Date();
-      const sunrise = new Date();
-      const sunset = new Date();
+      let sunrise = new Date();
+      let sunset = new Date();
       
-      // Parse sunrise/sunset times (simplified)
-      const [sunriseHour, sunriseMin] = weather.sunrise.replace(/[AP]M/, "").split(":").map(Number);
-      const [sunsetHour, sunsetMin] = weather.sunset.replace(/[AP]M/, "").split(":").map(Number);
-      
-      sunrise.setHours(
-        weather.sunrise.includes("PM") && sunriseHour !== 12 ? sunriseHour + 12 : sunriseHour,
-        sunriseMin
-      );
-      sunset.setHours(
-        weather.sunset.includes("PM") && sunsetHour !== 12 ? sunsetHour + 12 : sunsetHour,
-        sunsetMin
-      );
+      if (weather) {
+        // Parse as before
+        const [sunriseHour, sunriseMin] = weather.sunrise.replace(/[AP]M/, "").split(":").map(Number);
+        const [sunsetHour, sunsetMin] = weather.sunset.replace(/[AP]M/, "").split(":").map(Number);
+        
+        sunrise.setHours(
+          weather.sunrise.includes("PM") && sunriseHour !== 12 ? sunriseHour + 12 : sunriseHour,
+          sunriseMin
+        );
+        sunset.setHours(
+          weather.sunset.includes("PM") && sunsetHour !== 12 ? sunsetHour + 12 : sunsetHour,
+          sunsetMin
+        );
+      } else {
+        // Fallback times
+        sunrise.setHours(6, 42);
+        sunset.setHours(19, 18);
+      }
       
       const isDaytime = now >= sunrise && now <= sunset;
       root.classList.toggle("dark", !isDaytime);
     } else {
       root.classList.toggle("dark", theme === "dark");
     }
-  }, [weather.sunrise, weather.sunset]);
+  }, [weather]);
 
   useEffect(() => {
     applyTheme(theme);
@@ -234,11 +330,11 @@ export default function Page() {
     switch (displayMode) {
       case "tv":
         return {
-          header: "h-16", // Taller header for TV
-          nav: isNavCollapsed ? 'w-20' : 'w-72', // Wider navigation for TV
-          button: "h-14", // Larger buttons for TV
-          text: "text-lg", // Larger text for TV
-          padding: "p-8" // More padding for TV
+          header: "h-16",
+          nav: isNavCollapsed ? 'w-20' : 'w-72',
+          button: "h-14",
+          text: "text-lg",
+          padding: "p-8"
         };
       case "desktop":
         return {
@@ -250,16 +346,16 @@ export default function Page() {
         };
       case "tablet":
         return {
-          header: "h-16", // Slightly taller for touch
+          header: "h-16",
           nav: isNavCollapsed ? 'w-18' : 'w-56',
-          button: "h-12", // Touch-friendly size
+          button: "h-12",
           text: "text-base",
           padding: "p-4"
         };
       case "phone":
         return {
           header: "h-14",
-          nav: 'w-16', // Always collapsed on phone
+          nav: 'w-16',
           button: "h-10",
           text: "text-sm",
           padding: "p-3"
@@ -306,9 +402,17 @@ export default function Page() {
               </div>
             )}
             <div className="flex items-center gap-2">
-              <span>{weather.temperature}°</span>
-              {displayMode !== "phone" && (
-                <span className="text-muted-foreground">{weather.condition}</span>
+              {weather ? (
+                <>
+                  <span>{weather.temperature}°</span>
+                  {displayMode !== "phone" && (
+                    <span className="text-muted-foreground">{weather.condition}</span>
+                  )}
+                </>
+              ) : weatherError ? (
+                <span className="text-destructive text-xs">Offline</span>
+              ) : (
+                <span className="text-muted-foreground text-xs">Loading...</span>
               )}
             </div>
           </div>
