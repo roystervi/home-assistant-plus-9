@@ -1,6 +1,8 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react"
+import { useSession } from "next-auth/react"
+import { toast } from "react-hot-toast"
 
 interface BackgroundContextType {
   customBgColor: string | null;
@@ -14,6 +16,9 @@ interface BackgroundContextType {
   setTheme: (theme: "light" | "dark" | "system") => void;
   resolvedTheme: "light" | "dark";
   mounted: boolean;
+  // New: saving function
+  saveBackgroundSettings: () => Promise<void>;
+  isSaving: boolean;
 }
 
 const BackgroundContext = createContext<BackgroundContextType | undefined>(undefined);
@@ -151,6 +156,101 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
     }
   }, [backgroundMode, customBgColor, backgroundImage]);
 
+  // Authentication
+  const { data: session, isPending: sessionLoading } = useSession();
+
+  // Fetch from DB on mount if authenticated
+  useEffect(() => {
+    if (sessionLoading || !session?.user?.id) return;
+
+    const fetchSettings = async () => {
+      try {
+        const token = localStorage.getItem("bearer_token");
+        if (!token) return;
+
+        const response = await fetch("/api/background-settings", {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data) {
+            setBackgroundModeState(data.backgroundMode || "default");
+            setCustomBgColorState(data.customBgColor || null);
+            setBackgroundImageState(data.backgroundImage || null);
+            // Clear localStorage when loading from DB
+            localStorage.removeItem("backgroundMode");
+            localStorage.removeItem("customBgColor");
+            localStorage.removeItem("backgroundImage");
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch background settings:", error);
+        // Fallback to localStorage if DB fetch fails
+        const savedMode = localStorage.getItem("backgroundMode") || "default";
+        const savedColor = localStorage.getItem("customBgColor");
+        const savedImage = localStorage.getItem("backgroundImage");
+        if (savedColor) setCustomBgColorState(savedColor);
+        if (savedImage) setBackgroundImageState(savedImage);
+        setBackgroundModeState(savedMode);
+      }
+    };
+
+    fetchSettings();
+  }, [session?.user?.id, sessionLoading]);
+
+  // Save function
+  const saveBackgroundSettings = useCallback(async () => {
+    if (!session?.user?.id) {
+      toast.error("Please log in to save background settings");
+      return;
+    }
+
+    const token = localStorage.getItem("bearer_token");
+    if (!token) {
+      toast.error("Authentication error");
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const response = await fetch("/api/background-settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          backgroundMode,
+          customBgColor,
+          backgroundImage,
+        }),
+      });
+
+      if (response.ok) {
+        toast.success("Background settings saved successfully");
+        // Also save to localStorage as fallback
+        if (backgroundMode) localStorage.setItem("backgroundMode", backgroundMode);
+        if (customBgColor) localStorage.setItem("customBgColor", customBgColor);
+        else localStorage.removeItem("customBgColor");
+        if (backgroundImage) localStorage.setItem("backgroundImage", backgroundImage);
+        else localStorage.removeItem("backgroundImage");
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to save settings");
+      }
+    } catch (error) {
+      console.error("Save error:", error);
+      toast.error("Failed to save background settings");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [session?.user?.id, backgroundMode, customBgColor, backgroundImage]);
+
+  const [isSaving, setIsSaving] = useState(false);
+
   const value: BackgroundContextType = {
     theme,
     setTheme,
@@ -162,6 +262,8 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
     setBackgroundImage,
     backgroundMode,
     setBackgroundMode,
+    saveBackgroundSettings,
+    isSaving,
   };
 
   return (

@@ -125,3 +125,12 @@ export const recordings = sqliteTable('recordings', {
   storageLocationId: integer('storage_location_id').references(() => nvrStorageLocations.id),
   createdAt: text('created_at').notNull(),
 });
+
+export const userBackgroundSettings = sqliteTable('user_background_settings', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: text('user_id').notNull().unique(),
+  backgroundMode: text('background_mode').notNull().default('default'),
+  customBgColor: text('custom_bg_color'),
+  backgroundImage: text('background_image'),
+  updatedAt: text('updated_at').notNull(),
+});

@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { CheckCircle, RotateCw, Palette, Image as ImageIcon, Upload, Link, Settings } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { useSession } from "@/lib/auth-client"
 
 import { useTheme } from "@/components/theme-provider"
 
@@ -29,9 +31,13 @@ export function BackgroundColorCard() {
     backgroundImage, 
     setBackgroundImage,
     backgroundMode,
-    setBackgroundMode 
+    setBackgroundMode,
+    saveBackgroundSettings,
+    isSaving
   } = useTheme()
-  
+
+  const { data: session } = useSession();
+
   const [imageMode, setImageMode] = useState<"upload" | "url">("upload")
   
   const [imageUrl, setImageUrl] = useState("")
@@ -345,6 +351,25 @@ export function BackgroundColorCard() {
           <RotateCw size={14} />
           <span>Reset All</span>
         </button>
+
+        {/* Save Button - Only show if changes made or not default */}
+        { (backgroundMode !== "default" || customBgColor || backgroundImage) && (
+          <Button
+            onClick={saveBackgroundSettings}
+            disabled={isSaving || !session}
+            className="w-full mt-4"
+            variant={isSaving ? "default" : "default"}
+          >
+            {isSaving ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Saving...
+              </>
+            ) : (
+              "Save to Account"
+            )}
+          </Button>
+        )}
       </CardContent>
     </Card>
   )
