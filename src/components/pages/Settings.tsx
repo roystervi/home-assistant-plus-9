@@ -124,7 +124,7 @@ interface WeatherApiKeyState {
   weatherApiComKey: string;
 }
 
-export default function Settings() {
+export default function SettingsPage() {
   // Home Assistant Connection State (Persistent)
   const [haUrl, setHaUrl] = useState(() => haConnectionSettings.getSetting("url"));
   const [haToken, setHaToken] = useState(() => haConnectionSettings.getSetting("token"));
@@ -198,11 +198,21 @@ export default function Settings() {
   const [openWeatherKey, setOpenWeatherKey] = useState(() => localStorage.getItem('OPENWEATHER_API_KEY') || '');
   const [weatherApiComKey, setWeatherApiComKey] = useState(() => localStorage.getItem('WEATHERAPI_COM_KEY') || '');
 
+  const isHAConnected = haConnectionSettings.getSetting("isConnected");
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
-    ha: haUrl && haToken ? "connected" : "disconnected",
+    ha: (haUrl && haToken && isHAConnected) ? "connected" : "disconnected",
     weather: weatherApiSettings.getSetting("isConfigured") ? "configured" : "not_configured",
     energy: energyApiSettings.getSetting("isConfigured") ? "configured" : "not_configured",
   });
+
+  // Add useEffect to auto-test HA connection on mount if credentials are set
+  useEffect(() => {
+    if (haUrl && haToken && !isHAConnected) {
+      // Auto-test if credentials exist but status is not confirmed
+      const timer = setTimeout(() => testHaConnection(), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [haUrl, haToken, isHAConnected]);
 
   const [backupProgress, setBackupProgress] = useState(0);
   const [isBackingUp, setIsBackingUp] = useState(false);
@@ -368,7 +378,6 @@ export default function Settings() {
     }
   };
 
-  // Test Home Assistant Connection
   const testHaConnection = async () => {
     if (!haUrl || !haToken) {
       toast.error("Please enter both HA URL and token");
@@ -400,7 +409,6 @@ export default function Settings() {
           haConnectionSettings.setSetting("lastConnectionTest", new Date().toISOString());
           toast.success("Home Assistant connected successfully");
           
-          // Auto-fetch status states after successful connection
           setTimeout(() => fetchHAStatusStates(), 500);
         } else {
           throw new Error("Invalid response from HA");
