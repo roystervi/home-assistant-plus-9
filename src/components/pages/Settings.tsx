@@ -157,7 +157,7 @@ export default function SettingsPage() {
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [detailedLogs, setDetailedLogs] = useState(false);
   const [isLoadingStates, setIsLoadingStates] = useState(false);
-  const [haStatusStates, setHaStatusStates] = useState<Record<string, string>>({});
+  const [haStatusStates, setHaStatusStates] = useState<Record<string, any>>({});
 
   // Load from storage on mount
   useEffect(() => {
@@ -941,77 +941,104 @@ export default function SettingsPage() {
                 )}
               </Button>
 
-              {connectionStatus.ha === 'connected' && (
-                <Card>
-                  <CardHeader>
-                    <div className='flex items-center justify-between'>
-                      <div>
-                        <CardTitle className='flex items-center gap-2'>
-                          <Activity className='h-5 w-5' />
-                          Home Assistant Status
-                        </CardTitle>
-                        <CardDescription>
-                          Monitor key Home Assistant system states
-                        </CardDescription>
-                      </div>
+              <Card>
+                <CardHeader>
+                  <div className='flex items-center justify-between'>
+                    <div>
+                      <CardTitle className='flex items-center gap-2'>
+                        <Activity className='h-5 w-5' />
+                        Home Assistant Status
+                      </CardTitle>
+                      <CardDescription>
+                        Monitor key Home Assistant system states
+                      </CardDescription>
+                    </div>
+                    <Button 
+                      onClick={fetchHaStatusStates}
+                      disabled={isLoadingStates || connectionStatus.ha !== 'connected'}
+                      size='sm'
+                      variant='outline'
+                    >
+                      {isLoadingStates ? (
+                        <>
+                          <RefreshCw className='h-4 w-4 mr-2 animate-spin' />
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className='h-4 w-4 mr-2' />
+                          Refresh Status
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {connectionStatus.ha === 'testing' ? (
+                    <div className='text-center py-8'>
+                      <AlertCircle className='h-6 w-6 animate-spin mx-auto mb-2 text-yellow-600' />
+                      <p className='text-muted-foreground'>Testing connection...</p>
+                    </div>
+                  ) : connectionStatus.ha === 'disconnected' ? (
+                    <div className='text-center py-8 text-muted-foreground'>
+                      <XCircle className='h-6 w-6 mx-auto mb-2' />
+                      <p>Disconnected from Home Assistant</p>
+                      <p className='text-sm mt-2'>No status available. Connect to view entities.</p>
                       <Button 
-                        onClick={fetchHaStatusStates}
-                        disabled={isLoadingStates || connectionStatus.ha !== 'connected'}
-                        size='sm'
-                        variant='outline'
+                        variant='outline' 
+                        size='sm' 
+                        onClick={testHaConnection}
+                        disabled={!haUrl || !haToken}
+                        className='mt-3'
                       >
-                        {isLoadingStates ? (
-                          <>
-                            <RefreshCw className='h-4 w-4 mr-2 animate-spin' />
-                            Loading...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className='h-4 w-4 mr-2' />
-                            Refresh Status
-                          </>
-                        )}
+                        <Wifi className='h-4 w-4 mr-2' />
+                        Connect
                       </Button>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    {isLoadingStates ? (
-                      <div className='text-center py-8'>
-                        <RefreshCw className='h-6 w-6 animate-spin mx-auto mb-2' />
-                        <p>Loading HA status...</p>
+                  ) : isLoadingStates ? (
+                    <div className='text-center py-8'>
+                      <RefreshCw className='h-6 w-6 animate-spin mx-auto mb-2' />
+                      <p>Loading HA status...</p>
+                    </div>
+                  ) : Object.keys(haStatusStates).length === 0 ? (
+                    <div className='p-3 rounded-lg border bg-muted/50'>
+                      <div className='flex items-center justify-between'>
+                        <div>
+                          <p className='font-medium text-sm'>Conversation.home assistant</p>
+                          <p className='text-xs text-muted-foreground'>Entity: conversation.home_assistant</p>
+                          <p className='text-xs text-muted-foreground mt-1'>Last updated: Not available</p>
+                        </div>
+                        <Badge variant='outline' className='text-destructive'>unavailable</Badge>
                       </div>
-                    ) : Object.keys(haStatusStates).length === 0 ? (
-                      <div className='text-center py-4 text-muted-foreground'>
-                        <p>No status entities found in your Home Assistant instance.</p>
-                        <p className='text-sm mt-2'>This might be because the default status sensors don't exist or aren't configured.</p>
-                        <Button 
-                          variant='outline' 
-                          size='sm' 
-                          onClick={fetchHaStatusStates}
-                          className='mt-3'
-                        >
-                          <RefreshCw className='h-4 w-4 mr-2' />
-                          Retry Load
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className='grid gap-3 md:grid-cols-2'>
-                        {Object.entries(haStatusStates).map(([entityId, state]) => (
-                          <div key={entityId} className='flex items-center justify-between p-3 rounded-lg border'>
-                            <div>
-                              <p className='font-medium text-sm capitalize'>{entityId.replace(/_/g, ' ').replace('update', 'Update').replace('conversation', 'Conversation')}</p>
-                              <p className='text-xs text-muted-foreground'>Entity: {entityId}</p>
-                            </div>
-                            <Badge variant='outline' className={getStateStatusColor(state)}>
-                              {state}
-                            </Badge>
+                      <p className='text-xs text-muted-foreground mt-2'>Entity not found or unavailable in your Home Assistant instance.</p>
+                      <Button 
+                        variant='outline' 
+                        size='sm' 
+                        onClick={fetchHaStatusStates}
+                        className='mt-2'
+                      >
+                        <RefreshCw className='h-4 w-4 mr-2' />
+                        Retry
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className='space-y-3'>
+                      {Object.entries(haStatusStates).map(([entityId, entity]) => (
+                        <div key={entityId} className='flex items-center justify-between p-3 rounded-lg border'>
+                          <div>
+                            <p className='font-medium text-sm'>Conversation.home assistant</p>
+                            <p className='text-xs text-muted-foreground'>Entity: {entityId}</p>
+                            <p className='text-xs text-muted-foreground mt-1'>Last updated: {new Date(entity.last_updated).toLocaleString()}</p>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
+                          <Badge variant='outline' className={getStateStatusColor(entity.state)}>
+                            {entity.state}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </CardContent>
           </Card>
         </TabsContent>
