@@ -353,12 +353,12 @@ export function BackgroundColorCard() {
         </button>
 
         {/* Save Button - Only show if changes made or not default */}
-        { (backgroundMode !== "default" || customBgColor || backgroundImage) && (
+        { (backgroundMode !== "default" || customBgColor || backgroundImage) && session && (
           <Button
             onClick={saveBackgroundSettings}
-            disabled={isSaving || !session}
+            disabled={isSaving}
             className="w-full mt-4"
-            variant={isSaving ? "default" : "default"}
+            variant="default"
           >
             {isSaving ? (
               <>
@@ -368,6 +368,12 @@ export function BackgroundColorCard() {
             ) : (
               "Save to Account"
             )}
+          </Button>
+        )}
+
+        { (backgroundMode !== "default" || customBgColor || backgroundImage) && !session && (
+          <Button disabled className="w-full mt-4" variant="secondary">
+            Log in to save settings
           </Button>
         )}
       </CardContent>

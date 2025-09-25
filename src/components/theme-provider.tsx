@@ -1,8 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react"
-import { useSession } from "next-auth/react"
-import { toast } from "react-hot-toast"
+import { toast } from "sonner"
 
 interface BackgroundContextType {
   customBgColor: string | null;
@@ -155,51 +154,6 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [backgroundMode, customBgColor, backgroundImage]);
-
-  // Authentication
-  const { data: session, isPending: sessionLoading } = useSession();
-
-  // Fetch from DB on mount if authenticated
-  useEffect(() => {
-    if (sessionLoading || !session?.user?.id) return;
-
-    const fetchSettings = async () => {
-      try {
-        const token = localStorage.getItem("bearer_token");
-        if (!token) return;
-
-        const response = await fetch("/api/background-settings", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data) {
-            setBackgroundModeState(data.backgroundMode || "default");
-            setCustomBgColorState(data.customBgColor || null);
-            setBackgroundImageState(data.backgroundImage || null);
-            // Clear localStorage when loading from DB
-            localStorage.removeItem("backgroundMode");
-            localStorage.removeItem("customBgColor");
-            localStorage.removeItem("backgroundImage");
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch background settings:", error);
-        // Fallback to localStorage if DB fetch fails
-        const savedMode = localStorage.getItem("backgroundMode") || "default";
-        const savedColor = localStorage.getItem("customBgColor");
-        const savedImage = localStorage.getItem("backgroundImage");
-        if (savedColor) setCustomBgColorState(savedColor);
-        if (savedImage) setBackgroundImageState(savedImage);
-        setBackgroundModeState(savedMode);
-      }
-    };
-
-    fetchSettings();
-  }, [session?.user?.id, sessionLoading]);
 
   // Save function
   const saveBackgroundSettings = useCallback(async () => {
