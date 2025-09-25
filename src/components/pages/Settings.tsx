@@ -1358,6 +1358,116 @@ export default function Settings() {
                       </p>
                     </div>
                   )}
+
+                  {/* ZIP Code Lookup Section */}
+                  {weatherProvider !== "ha_integration" && (
+                    <div className="mt-6 p-4 bg-blue-50 rounded-lg border">
+                      <Label className="text-base font-medium mb-3 block">Or Enter ZIP Code for Location</Label>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                        <div>
+                          <Label htmlFor="weather-zip">5-Digit ZIP Code</Label>
+                          <Input
+                            id="weather-zip"
+                            placeholder="e.g., 90210"
+                            maxLength={5}
+                            pattern="[0-9]{5}"
+                            value={weatherLocation.zip || ''}
+                            onChange={(e) => setWeatherLocation(prev => ({ ...prev, zip: e.target.value }))}
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <Button
+                            onClick={async () => {
+                              if (!weatherLocation.zip || weatherLocation.zip.length !== 5 || !weatherApiKey) {
+                                toast.error("Enter a valid 5-digit ZIP code and ensure API key is set");
+                                return;
+                              }
+
+                              try {
+                                const loadingToast = toast.loading("Looking up ZIP code...");
+                                let lookupUrl = "";
+                                let country = "US";
+
+                                switch (weatherProvider) {
+                                  case "openweathermap":
+                                    lookupUrl = `https://api.openweathermap.org/geo/1.0/zip?zip=${weatherLocation.zip},${country}&appid=${weatherApiKey}`;
+                                    break;
+                                  case "weatherapi":
+                                    lookupUrl = `https://api.weatherapi.com/v1/search.json?key=${weatherApiKey}&q=${weatherLocation.zip}`;
+                                    break;
+                                  case "accuweather":
+                                    lookupUrl = `https://dataservice.accuweather.com/locations/v1/cities/search?apikey=${weatherApiKey}&q=${weatherLocation.zip}`;
+                                    break;
+                                  default:
+                                    throw new Error("ZIP lookup not supported for this provider");
+                                }
+
+                                const response = await fetch(lookupUrl);
+                                if (!response.ok) throw new Error(`Lookup failed: HTTP ${response.status}`);
+
+                                const data = await response.json();
+
+                                let lat: number, lon: number, city: string, countryCode: string, locationKey?: string;
+
+                                switch (weatherProvider) {
+                                  case "openweathermap":
+                                    if (!data.lat || !data.lon) throw new Error("Invalid ZIP code");
+                                    lat = data.lat;
+                                    lon = data.lon;
+                                    city = data.name;
+                                    countryCode = data.country;
+                                    break;
+                                  case "weatherapi":
+                                    if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid ZIP code");
+                                    const firstResult = data[0];
+                                    lat = firstResult.lat;
+                                    lon = firstResult.lon;
+                                    city = firstResult.name;
+                                    countryCode = firstResult.country;
+                                    break;
+                                  case "accuweather":
+                                    if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid ZIP code");
+                                    const accuResult = data[0];
+                                    lat = accuResult.GeoPosition.Latitude;
+                                    lon = accuResult.GeoPosition.Longitude;
+                                    city = accuResult.LocalizedName;
+                                    countryCode = accuResult.Country.LocalizedName;
+                                    locationKey = accuResult.Key;
+                                    break;
+                                }
+
+                                const newLocation = { 
+                                  lat, 
+                                  lon, 
+                                  city, 
+                                  country: countryCode, 
+                                  zip: weatherLocation.zip,
+                                  locationKey 
+                                };
+
+                                setWeatherLocation(newLocation);
+                                weatherApiSettings.setSetting("location", newLocation);
+
+                                toast.dismiss(loadingToast);
+                                toast.success(`Location set via ZIP: ${city}, ${countryCode}`);
+
+                                // Auto-test after lookup
+                                setTimeout(() => testWeatherApi(), 500);
+                              } catch (error: any) {
+                                toast.dismiss(loadingToast);
+                                toast.error(`ZIP lookup failed: ${error.message}`);
+                              }
+                            }}
+                            className="w-full"
+                            disabled={!weatherApiKey}
+                          >
+                            <MapPin className="h-4 w-4 mr-2" />
+                            Lookup by ZIP Code
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 
