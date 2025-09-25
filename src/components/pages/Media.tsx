@@ -113,8 +113,9 @@ const openDB = (): Promise<IDBDatabase> => {
 };
 
 const saveFilesToIDB = async (storeName: string, files: MediaFile[]): Promise<void> => {
-  if (!('indexedDB' in window)) {
-    throw new Error('IndexedDB not supported');
+  if (!('indexedDB' in window) || !Array.isArray(files)) {
+    console.warn('Cannot save files: IndexedDB not supported or files not array');
+    return;
   }
   const db = await openDB();
   const tx = db.transaction(storeName, 'readwrite');
@@ -193,13 +194,15 @@ export default function MediaPage() {
           loadFilesFromIDB(MUSIC_STORE),
           loadFilesFromIDB(VIDEO_STORE)
         ]);
-        setMusicFiles(music);
-        setVideoFiles(videos);
+        const safeMusic = Array.isArray(music) ? music : [];
+        const safeVideos = Array.isArray(videos) ? videos : [];
+        setMusicFiles(safeMusic);
+        setVideoFiles(safeVideos);
 
         // Extract folders
-        const musicFolds = new Set(music.map(f => f.folder || 'General').filter(Boolean));
+        const musicFolds = new Set(safeMusic.map(f => f.folder || 'General').filter(Boolean));
         setMusicFolders(musicFolds);
-        const videoFolds = new Set(videos.map(f => f.folder || 'General').filter(Boolean));
+        const videoFolds = new Set(safeVideos.map(f => f.folder || 'General').filter(Boolean));
         setVideoFolders(videoFolds);
 
         // Load small data from localStorage
@@ -256,7 +259,7 @@ export default function MediaPage() {
 
   // Save music files to IndexedDB
   useEffect(() => {
-    if (musicFiles.length === 0) return;
+    if (!Array.isArray(musicFiles) || musicFiles.length === 0) return;
     const saveMusic = async () => {
       try {
         await saveFilesToIDB(MUSIC_STORE, musicFiles);
@@ -283,7 +286,7 @@ export default function MediaPage() {
 
   // Save video files to IndexedDB
   useEffect(() => {
-    if (videoFiles.length === 0) return;
+    if (!Array.isArray(videoFiles) || videoFiles.length === 0) return;
     const saveVideos = async () => {
       try {
         await saveFilesToIDB(VIDEO_STORE, videoFiles);

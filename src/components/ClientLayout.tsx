@@ -391,7 +391,7 @@ export default function ClientLayout({ currentPage, children }: ClientLayoutProp
   // Client-side only hooks
   const isClient = typeof window !== "undefined";
   if (!isClient) {
-    return <div className="min-h-screen bg-background" />; // Minimal SSR shell
+    return <div className="min-h-screen bg-background" />;
   }
 
   return (
