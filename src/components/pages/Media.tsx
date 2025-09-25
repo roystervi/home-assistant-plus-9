@@ -12,6 +12,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
   Music,
   Video,
   Network,
@@ -43,6 +49,7 @@ interface MediaFile {
   artist?: string;
   album?: string;
   thumbnail?: string;
+  folder?: string;
 }
 
 interface Playlist {
@@ -172,6 +179,12 @@ export default function MediaPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRef = useRef<HTMLMediaElement>(null); // Unified ref for audio/video
 
+  // Add state for folders
+  const [musicFolders, setMusicFolders] = useState<Set<string>>(new Set());
+  const [videoFolders, setVideoFolders] = useState<Set<string>>(new Set());
+  const [uploadFolder, setUploadFolder] = useState('General');
+  const [showFolderDialog, setShowFolderDialog] = useState(false);
+
   // Load data from IndexedDB on mount with localStorage fallback
   useEffect(() => {
     const loadData = async () => {
@@ -182,6 +195,12 @@ export default function MediaPage() {
         ]);
         setMusicFiles(music);
         setVideoFiles(videos);
+
+        // Extract folders
+        const musicFolds = new Set(music.map(f => f.folder || 'General').filter(Boolean));
+        setMusicFolders(musicFolds);
+        const videoFolds = new Set(videos.map(f => f.folder || 'General').filter(Boolean));
+        setVideoFolders(videoFolds);
 
         // Load small data from localStorage
         try {
@@ -221,6 +240,17 @@ export default function MediaPage() {
     };
     loadData();
   }, []);
+
+  // Update folders when musicFiles change
+  useEffect(() => {
+    const folders = new Set(musicFiles.map(f => f.folder || 'General').filter(Boolean));
+    setMusicFolders(folders);
+  }, [musicFiles]);
+
+  useEffect(() => {
+    const folders = new Set(videoFiles.map(f => f.folder || 'General').filter(Boolean));
+    setVideoFolders(folders);
+  }, [videoFiles]);
 
   // Save music files to IndexedDB
   useEffect(() => {
@@ -455,6 +485,7 @@ export default function MediaPage() {
           name: file.name.replace(/\.[^/.]+$/, ""),
           type: file.type,
           url: dataUrl,
+          folder: uploadFolder
         };
         
         if (type === "music") {
@@ -469,7 +500,7 @@ export default function MediaPage() {
         toast.error(`Failed to process ${file.name}`);
       }
     }
-  }, [setMusicFiles, setVideoFiles]);
+  }, [uploadFolder, setMusicFiles, setVideoFiles]);
 
   const handleDrop = useCallback((e: React.DragEvent, type: "music" | "video") => {
     e.preventDefault();
@@ -487,6 +518,22 @@ export default function MediaPage() {
   const filteredVideoFiles = videoFiles.filter(file =>
     file.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Group music by folder
+  const groupedMusic = filteredMusicFiles.reduce((acc, file) => {
+    const folder = file.folder || 'General';
+    if (!acc[folder]) acc[folder] = [];
+    acc[folder].push(file);
+    return acc;
+  }, {} as Record<string, MediaFile[]>);
+
+  // Group videos by folder
+  const groupedVideos = filteredVideoFiles.reduce((acc, file) => {
+    const folder = file.folder || 'General';
+    if (!acc[folder]) acc[folder] = [];
+    acc[folder].push(file);
+    return acc;
+  }, {} as Record<string, MediaFile[]>);
 
   // Media card component
   const MediaCard = ({ media, type, onPlay, onRemove }: {
@@ -547,35 +594,87 @@ export default function MediaPage() {
 
   // Upload area component
   const UploadArea = ({ type, accept }: { type: "music" | "video"; accept: string }) => (
-    <div
-      className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors duration-200"
-      onDrop={(e) => handleDrop(e, type)}
-      onDragOver={(e) => e.preventDefault()}
-    >
-      <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-      <h3 className="text-lg font-medium mb-2">Upload {type === "music" ? "Music" : "Videos"}</h3>
-      <p className="text-muted-foreground mb-4">Drag and drop files here or click to browse</p>
-      <Button
-        onClick={() => {
-          fileInputRef.current?.click();
-        }}
-        variant="outline"
+    <div className="space-y-4">
+      {/* Folder selection */}
+      <div className="flex items-center gap-2">
+        <Label>Folder:</Label>
+        <select 
+          value={uploadFolder} 
+          onChange={(e) => setUploadFolder(e.target.value)}
+          className="flex-1 p-2 border rounded"
+        >
+          {type === "music" ? (
+            Array.from(musicFolders).map(folder => (
+              <option key={folder} value={folder}>{folder}</option>
+            ))
+          ) : (
+            Array.from(videoFolders).map(folder => (
+              <option key={folder} value={folder}>{folder}</option>
+            ))
+          )}
+          <option value="New Folder">+ New Folder</option>
+        </select>
+        {uploadFolder === "New Folder" && (
+          <Dialog open={showFolderDialog} onOpenChange={setShowFolderDialog}>
+            <DialogTrigger asChild>
+              <Button size="sm" onClick={() => setShowFolderDialog(true)}>Create</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>New Folder</DialogTitle>
+              </DialogHeader>
+              <Input 
+                placeholder="Folder name" 
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const name = (e.target as HTMLInputElement).value.trim();
+                    if (name && type === "music") {
+                      setMusicFolders(prev => new Set([...prev, name]));
+                      setUploadFolder(name);
+                    } else if (name && type === "video") {
+                      setVideoFolders(prev => new Set([...prev, name]));
+                      setUploadFolder(name);
+                    }
+                    setShowFolderDialog(false);
+                    (e.target as HTMLInputElement).value = '';
+                  }
+                }}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+      
+      <div
+        className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors duration-200"
+        onDrop={(e) => handleDrop(e, type)}
+        onDragOver={(e) => e.preventDefault()}
       >
-        <Plus className="h-4 w-4 mr-2" />
-        Choose Files
-      </Button>
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        accept={accept}
-        className="hidden"
-        onChange={(e) => {
-          if (e.target.files) {
-            handleFileUpload(e.target.files, type);
-          }
-        }}
-      />
+        <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+        <h3 className="text-lg font-medium mb-2">Upload {type === "music" ? "Music" : "Videos"}</h3>
+        <p className="text-muted-foreground mb-4">Drag and drop files here or click to browse</p>
+        <Button
+          onClick={() => {
+            fileInputRef.current?.click();
+          }}
+          variant="outline"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Choose Files
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={accept}
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files) {
+              handleFileUpload(e.target.files, type);
+            }
+          }}
+        />
+      </div>
     </div>
   );
 
@@ -748,28 +847,41 @@ export default function MediaPage() {
             </Badge>
           </div>
 
-          {filteredMusicFiles.length === 0 ? (
+          {Object.keys(groupedMusic).length === 0 ? (
             <UploadArea type="music" accept="audio/*" />
           ) : (
             <>
-              <div className={viewMode === "grid" 
-                ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4"
-                : "space-y-2"
-              }>
-                {filteredMusicFiles.map((media) => (
-                  <MediaCard
-                    key={media.id}
-                    media={media}
-                    type="music"
-                    onPlay={() => handlePlay(media)}
-                    onRemove={() => removeMusicFile(media.id)}
-                  />
-                ))}
-              </div>
+              {Object.entries(groupedMusic).map(([folder, files]) => (
+                <Card key={folder}>
+                  <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value={folder}>
+                      <AccordionTrigger>{folder} ({files.length})</AccordionTrigger>
+                      <AccordionContent>
+                        <div className={viewMode === "grid" 
+                          ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4"
+                          : "space-y-2"
+                        }>
+                          {files.map((media) => (
+                            <MediaCard
+                              key={media.id}
+                              media={media}
+                              type="music"
+                              onPlay={() => handlePlay(media)}
+                              onRemove={() => removeMusicFile(media.id)}
+                            />
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </Card>
+              ))}
               
-              <Card className="p-4">
-                <UploadArea type="music" accept="audio/*" />
-              </Card>
+              {Object.keys(groupedMusic).length > 0 && (
+                <Card className="p-4">
+                  <UploadArea type="music" accept="audio/*" />
+                </Card>
+              )}
             </>
           )}
         </TabsContent>
@@ -790,28 +902,41 @@ export default function MediaPage() {
             </Badge>
           </div>
 
-          {filteredVideoFiles.length === 0 ? (
+          {Object.keys(groupedVideos).length === 0 ? (
             <UploadArea type="video" accept="video/*" />
           ) : (
             <>
-              <div className={viewMode === "grid"
-                ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-                : "space-y-2"
-              }>
-                {filteredVideoFiles.map((media) => (
-                  <MediaCard
-                    key={media.id}
-                    media={media}
-                    type="video"
-                    onPlay={() => handlePlay(media)}
-                    onRemove={() => removeVideoFile(media.id)}
-                  />
-                ))}
-              </div>
+              {Object.entries(groupedVideos).map(([folder, files]) => (
+                <Card key={folder}>
+                  <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value={folder}>
+                      <AccordionTrigger>{folder} ({files.length})</AccordionTrigger>
+                      <AccordionContent>
+                        <div className={viewMode === "grid"
+                          ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+                          : "space-y-2"
+                        }>
+                          {files.map((media) => (
+                            <MediaCard
+                              key={media.id}
+                              media={media}
+                              type="video"
+                              onPlay={() => handlePlay(media)}
+                              onRemove={() => removeVideoFile(media.id)}
+                            />
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </Card>
+              ))}
               
-              <Card className="p-4">
-                <UploadArea type="video" accept="video/*" />
-              </Card>
+              {Object.keys(groupedVideos).length > 0 && (
+                <Card className="p-4">
+                  <UploadArea type="video" accept="video/*" />
+                </Card>
+              )}
             </>
           )}
         </TabsContent>
