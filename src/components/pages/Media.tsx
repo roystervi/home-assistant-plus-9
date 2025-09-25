@@ -110,27 +110,38 @@ export default function MediaPage() {
   // UI state
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   
   // Refs
   const audioRef = useRef<HTMLAudioElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  // const videoRef = useRef<HTMLVideoElement>(null); // Now used for visible video only
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRef = useRef<HTMLMediaElement>(null); // Unified ref for audio/video
 
   // Load data from localStorage on mount
   useEffect(() => {
-    const savedMusic = localStorage.getItem("media-music-files");
-    const savedVideos = localStorage.getItem("media-video-files");
-    const savedPlaylists = localStorage.getItem("media-playlists");
-    const savedStations = localStorage.getItem("media-stream-stations");
-    const savedChannels = localStorage.getItem("media-youtube-channels");
-    
-    if (savedMusic) setMusicFiles(JSON.parse(savedMusic));
-    if (savedVideos) setVideoFiles(JSON.parse(savedVideos));
-    if (savedPlaylists) setPlaylists(JSON.parse(savedPlaylists));
-    if (savedStations) setStreamStations(JSON.parse(savedStations));
-    if (savedChannels) setYoutubeChannels(JSON.parse(savedChannels));
+    try {
+      const savedMusic = localStorage.getItem("media-music-files");
+      if (savedMusic) setMusicFiles(JSON.parse(savedMusic));
+      
+      const savedVideos = localStorage.getItem("media-video-files");
+      if (savedVideos) setVideoFiles(JSON.parse(savedVideos));
+      
+      const savedPlaylists = localStorage.getItem("media-playlists");
+      if (savedPlaylists) setPlaylists(JSON.parse(savedPlaylists));
+      
+      const savedStations = localStorage.getItem("media-stream-stations");
+      if (savedStations) setStreamStations(JSON.parse(savedStations));
+      
+      const savedChannels = localStorage.getItem("media-youtube-channels");
+      if (savedChannels) setYoutubeChannels(JSON.parse(savedChannels));
+    } catch (e) {
+      console.error("Failed to load media data:", e);
+      localStorage.removeItem("media-music-files");
+      localStorage.removeItem("media-video-files");
+      localStorage.removeItem("media-playlists");
+      localStorage.removeItem("media-stream-stations");
+      localStorage.removeItem("media-youtube-channels");
+    }
   }, []);
 
   // Save data to localStorage
@@ -156,58 +167,77 @@ export default function MediaPage() {
 
   // Media controls
   const handlePlay = useCallback((media: MediaFile) => {
-    if (currentMedia && currentMedia.id !== media.id) {
+    if (currentMedia?.id === media.id) {
+      // Toggle play/pause if same media
+      setIsPlaying(!isPlaying);
+    } else {
+      // Switch to new media, start from beginning
       setCurrentMedia(media);
+      setCurrentTime(0);
+      setIsPlaying(true);
     }
-    setIsPlaying(true);
-    
-    // Set src on the appropriate element based on type
-    if (media.type.startsWith('audio/')) {
-      const audio = audioRef.current;
-      if (audio) {
-        audio.src = media.url;
-        audio.load();
-        audio.play().catch(err => toast.error(`Playback failed: ${err.message}`));
-        setCurrentMedia({ ...media, type: 'audio' });
-      }
-    } else if (media.type.startsWith('video/')) {
-      const video = videoRef.current;
-      if (video) {
-        video.src = media.url;
-        video.load();
-        video.play().catch(err => toast.error(`Playback failed: ${err.message}`));
-        // For videos, we might want to show it in UI later
-        setCurrentMedia({ ...media, type: 'video' });
-      }
-    }
-    toast.success(`Playing: ${media.name}`);
-  }, [currentMedia]);
+    toast.success(`Now playing: ${media.name}`);
+  }, [currentMedia?.id, isPlaying]);
 
   const handlePause = useCallback(() => {
     setIsPlaying(false);
-    if (mediaRef.current) {
-      mediaRef.current.pause();
-    } else {
-      if (audioRef.current) audioRef.current.pause();
-      if (videoRef.current) videoRef.current.pause();
-    }
   }, []);
 
   const handleStop = useCallback(() => {
     setIsPlaying(false);
     setCurrentTime(0);
     setCurrentMedia(null);
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = '';
-      audioRef.current.currentTime = 0;
-    }
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.src = '';
-      videoRef.current.currentTime = 0;
-    }
   }, []);
+
+  // Media control useEffects
+  useEffect(() => {
+    if (currentMedia?.type.startsWith('audio/') && audioRef.current && currentMedia.url) {
+      const audio = audioRef.current;
+      if (audio.src !== currentMedia.url) {
+        audio.src = currentMedia.url;
+        audio.load();
+      }
+      if (isPlaying) {
+        audio.play().catch(err => {
+          setIsPlaying(false);
+          toast.error(`Audio playback failed: ${err.message}`);
+        });
+      } else {
+        audio.pause();
+      }
+    } else if (currentMedia?.type.startsWith('video/') && videoRef.current && currentMedia.url) {
+      const video = videoRef.current;
+      if (video.src !== currentMedia.url) {
+        video.src = currentMedia.url;
+        video.load();
+      }
+      if (isPlaying) {
+        video.play().catch(err => {
+          setIsPlaying(false);
+          toast.error(`Video playback failed: ${err.message}`);
+        });
+      } else {
+        video.pause();
+      }
+    }
+  }, [currentMedia, isPlaying]);
+
+  useEffect(() => {
+    if (!currentMedia) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current.currentTime = 0;
+      }
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.src = '';
+        videoRef.current.currentTime = 0;
+      }
+      setCurrentTime(0);
+      setDuration(0);
+    }
+  }, [currentMedia]);
 
   const handleTimeUpdate = useCallback((e: React.SyntheticEvent<HTMLMediaElement>) => {
     setCurrentTime(e.currentTarget.currentTime);
@@ -220,12 +250,8 @@ export default function MediaPage() {
   const handleSeekChange = useCallback((value: number[]) => {
     const newTime = value[0];
     setCurrentTime(newTime);
-    if (mediaRef.current) {
-      mediaRef.current.currentTime = newTime;
-    } else {
-      if (audioRef.current) audioRef.current.currentTime = newTime;
-      if (videoRef.current) videoRef.current.currentTime = newTime;
-    }
+    if (audioRef.current) audioRef.current.currentTime = newTime;
+    if (videoRef.current) videoRef.current.currentTime = newTime;
   }, []);
 
   const handleVolumeChange = useCallback((value: number[]) => {
@@ -243,44 +269,57 @@ export default function MediaPage() {
   }, [isMuted]);
 
   // File upload handling
-  const handleFileUpload = useCallback((files: FileList, type: "music" | "video") => {
-    Array.from(files).forEach((file, index) => {
-      const id = `${Date.now()}-${index}`;
-      const url = URL.createObjectURL(file);
+  const handleFileUpload = useCallback(async (files: FileList, type: "music" | "video") => {
+    const maxSize = 5 * 1024 * 1024; // 5MB limit (base64 will be ~6.6MB)
+    
+    for (const file of Array.from(files)) {
+      if (file.size > maxSize) {
+        toast.error(`${file.name} is too large. Maximum size is 5MB.`);
+        continue;
+      }
       
-      // Simulate upload progress
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 10;
-        setUploadProgress(prev => ({ ...prev, [id]: progress }));
+      if (type === "music" && !file.type.startsWith('audio/')) {
+        toast.error(`${file.name} is not a valid audio file.`);
+        continue;
+      }
+      
+      if (type === "video" && !file.type.startsWith('video/')) {
+        toast.error(`${file.name} is not a valid video file.`);
+        continue;
+      }
+      
+      const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      toast.info(`Processing ${file.name}...`);
+      
+      try {
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(new Error('Failed to read file'));
+          reader.readAsDataURL(file);
+        });
         
-        if (progress >= 100) {
-          clearInterval(interval);
-          setUploadProgress(prev => {
-            const newProgress = { ...prev };
-            delete newProgress[id];
-            return newProgress;
-          });
-          
-          const mediaFile: MediaFile = {
-            id,
-            name: file.name.replace(/\.[^/.]+$/, ""),
-            type: file.type,
-            url,
-            duration: 0, // Would be set after loading metadata
-          };
-          
-          if (type === "music") {
-            setMusicFiles(prev => [...prev, mediaFile]);
-          } else {
-            setVideoFiles(prev => [...prev, mediaFile]);
-          }
-          
-          toast.success(`${file.name} uploaded successfully`);
+        const mediaFile: MediaFile = {
+          id,
+          name: file.name.replace(/\.[^/.]+$/, ""),
+          type: file.type,
+          url: dataUrl,
+        };
+        
+        if (type === "music") {
+          setMusicFiles(prev => [...prev, mediaFile]);
+        } else {
+          setVideoFiles(prev => [...prev, mediaFile]);
         }
-      }, 200);
-    });
-  }, []);
+        
+        toast.success(`${file.name} uploaded and ready to play!`);
+      } catch (err) {
+        console.error('Upload error:', err);
+        toast.error(`Failed to process ${file.name}`);
+      }
+    }
+  }, [setMusicFiles, setVideoFiles]);
 
   const handleDrop = useCallback((e: React.DragEvent, type: "music" | "video") => {
     e.preventDefault();
@@ -482,7 +521,7 @@ export default function MediaPage() {
             </div>
             
             {/* Video Preview - Show inline for videos */}
-            {currentMedia && currentMedia.type === 'video' && (
+            {currentMedia && currentMedia.type.startsWith('video/') && (
               <div className="mt-4">
                 <video
                   ref={videoRef}
@@ -490,7 +529,10 @@ export default function MediaPage() {
                   controls
                   onTimeUpdate={handleTimeUpdate}
                   onLoadedMetadata={handleLoadedMetadata}
-                  onEnded={() => setIsPlaying(false)}
+                  onEnded={() => {
+                    setIsPlaying(false);
+                    // Optionally auto-next if playlist
+                  }}
                 />
               </div>
             )}
@@ -866,17 +908,9 @@ export default function MediaPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Hidden audio/video elements */}
+      {/* Hidden audio only */}
       <audio
         ref={audioRef}
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleLoadedMetadata}
-        onEnded={() => setIsPlaying(false)}
-        className="hidden"
-      />
-      
-      <video
-        ref={videoRef}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={() => setIsPlaying(false)}
