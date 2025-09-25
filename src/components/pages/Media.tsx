@@ -542,25 +542,25 @@ export default function MediaPage() {
     onPlay: () => void;
     onRemove: () => void;
   }) => (
-    <Card className="group hover:shadow-lg transition-all duration-200 hover:scale-105">
+    <Card className="group hover:shadow-lg transition-all duration-200">
       <div className="relative">
         {media.thumbnail && (
           <img
             src={media.thumbnail}
             alt={media.name}
-            className="w-full h-32 object-cover rounded-t-lg"
+            className="w-full h-40 object-cover rounded-t-lg"
           />
         )}
         {!media.thumbnail && (
-          <div className="w-full h-32 bg-muted flex items-center justify-center rounded-t-lg">
+          <div className="w-full h-40 bg-muted flex items-center justify-center rounded-t-lg">
             {type === "music" ? (
-              <Music className="h-12 w-12 text-muted-foreground" />
+              <Music className="h-16 w-16 text-muted-foreground" />
             ) : (
-              <Video className="h-12 w-12 text-muted-foreground" />
+              <Video className="h-16 w-16 text-muted-foreground" />
             )}
           </div>
         )}
-        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center rounded-t-lg">
+        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center rounded-t-lg">
           <Button
             size="sm"
             variant="secondary"
@@ -578,15 +578,20 @@ export default function MediaPage() {
           </Button>
         </div>
       </div>
-      <CardContent className="p-4">
-        <h4 className="font-medium truncate">{media.name}</h4>
+      <CardContent className="p-6">
+        <h4 className="font-semibold text-base line-clamp-2">{media.name}</h4>
         {media.artist && (
-          <p className="text-sm text-muted-foreground truncate">{media.artist}</p>
+          <p className="text-sm text-muted-foreground mt-1">{media.artist}</p>
         )}
         {media.duration && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground mt-1">
             {Math.floor(media.duration / 60)}:{String(Math.floor(media.duration % 60)).padStart(2, '0')}
           </p>
+        )}
+        {media.folder && media.folder !== 'General' && (
+          <Badge variant="outline" className="mt-2 text-xs">
+            {media.folder}
+          </Badge>
         )}
       </CardContent>
     </Card>
@@ -853,13 +858,18 @@ export default function MediaPage() {
             <>
               {Object.entries(groupedMusic).map(([folder, files]) => (
                 <Card key={folder}>
-                  <Accordion type="multiple" defaultValue={Object.keys(groupedMusic)} collapsible className="w-full">
+                  <Accordion type="multiple" defaultValue={[...Object.keys(groupedMusic)]} collapsible className="w-full">
                     <AccordionItem value={folder}>
-                      <AccordionTrigger>{folder} ({files.length})</AccordionTrigger>
-                      <AccordionContent>
+                      <AccordionTrigger className="text-lg font-semibold hover:no-underline">
+                        <div className="flex items-center justify-between w-full">
+                          <span>{folder}</span>
+                          <Badge variant="secondary" className="ml-2">{files.length}</Badge>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-4">
                         <div className={viewMode === "grid" 
-                          ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4"
-                          : "space-y-2"
+                          ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 p-4"
+                          : "space-y-4"
                         }>
                           {files.map((media) => (
                             <MediaCard
@@ -908,13 +918,18 @@ export default function MediaPage() {
             <>
               {Object.entries(groupedVideos).map(([folder, files]) => (
                 <Card key={folder}>
-                  <Accordion type="multiple" defaultValue={Object.keys(groupedVideos)} collapsible className="w-full">
+                  <Accordion type="multiple" defaultValue={[...Object.keys(groupedVideos)]} collapsible className="w-full">
                     <AccordionItem value={folder}>
-                      <AccordionTrigger>{folder} ({files.length})</AccordionTrigger>
-                      <AccordionContent>
+                      <AccordionTrigger className="text-lg font-semibold hover:no-underline">
+                        <div className="flex items-center justify-between w-full">
+                          <span>{folder}</span>
+                          <Badge variant="secondary" className="ml-2">{files.length}</Badge>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-4">
                         <div className={viewMode === "grid"
-                          ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-                          : "space-y-2"
+                          ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 p-4"
+                          : "space-y-4"
                         }>
                           {files.map((media) => (
                             <MediaCard
