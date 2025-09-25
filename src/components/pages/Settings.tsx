@@ -35,6 +35,7 @@ import {
   Activity,
   RefreshCw,
   Key,
+  ExternalLink,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -691,9 +692,22 @@ export default function SettingsPage() {
   ];
 
   const testHaConnection = useCallback(async () => {
-    if (!haUrl || !haToken) {
-      toast.error('Please enter both HA URL and token');
+    const trimmedUrl = haUrl.trim();
+    const trimmedToken = haToken.trim();
+    
+    if (!trimmedUrl || !trimmedToken) {
+      toast.error('Please enter both HA URL and token (whitespace trimmed automatically)');
       return;
+    }
+
+    // Validate URL format
+    if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+      toast.error('HA URL must start with http:// or https://');
+      return;
+    }
+
+    if (!trimmedToken.startsWith('eyJ')) {
+      toast.warning('Token format may be invalid (should start with eyJ...) – double-check generation');
     }
 
     setConnectionStatus(prev => ({ ...prev, ha: 'testing' }));
@@ -702,21 +716,50 @@ export default function SettingsPage() {
       const response = await fetch('/api/homeassistant/test-connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: haUrl, token: haToken, timeout: haTimeout }),
+        body: JSON.stringify({ url: trimmedUrl, token: trimmedToken, timeout: haTimeout }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        setConnectionStatus(prev => ({ ...prev, ha: 'connected' }));
-        toast.success('Home Assistant connection successful!');
+        // Check for specific success indicators
+        if (data.connected && data.version) {
+          setConnectionStatus(prev => ({ ...prev, ha: 'connected' }));
+          toast.success(`Home Assistant connected! Version: ${data.version}`);
+        } else {
+          throw new Error('Connection succeeded but no version info – check HA configuration');
+        }
       } else {
-        const error = await response.json().catch(() => ({ message: 'Connection failed' }));
+        let errorDetail = 'Connection failed – unknown error';
+        try {
+          const errorData = await response.json();
+          errorDetail = errorData.message || errorData.error || `HTTP ${response.status}`;
+          // Specific error handling
+          if (errorData.code === 401) {
+            errorDetail = 'Invalid token – regenerate Long-Lived Access Token in HA Profile';
+          } else if (errorData.code === 404) {
+            errorDetail = 'HA URL not found – verify URL and port (default:8123)';
+          } else if (response.status === 0) {
+            errorDetail = 'Network error (CORS/firewall) – check browser console and HA network access';
+          }
+        } catch (parseErr) {
+          // Raw error
+          errorDetail = `HTTP ${response.status} – ${response.statusText}`;
+        }
         setConnectionStatus(prev => ({ ...prev, ha: 'disconnected' }));
-        toast.error(`HA Connection failed: ${error.message}`);
+        toast.error(`HA Connection failed: ${errorDetail}`);
       }
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Network/timeout error';
       setConnectionStatus(prev => ({ ...prev, ha: 'disconnected' }));
-      toast.error(`HA Connection error: ${error.message}`);
+      
+      // Categorize common errors
+      if (errorMsg.includes('fetch')) {
+        toast.error(`Network error: ${errorMsg}. Check internet, URL accessibility, and browser console for CORS issues.`);
+      } else if (errorMsg.includes('timeout')) {
+        toast.error(`Connection timed out (${haTimeout}ms). Increase timeout or check HA responsiveness.`);
+      } else {
+        toast.error(`HA Connection error: ${errorMsg}`);
+      }
     }
   }, [haUrl, haToken, haTimeout]);
 
@@ -1059,6 +1102,30 @@ export default function SettingsPage() {
                   </>
                 )}
               </Button>
+
+              <div className='mt-4 p-4 bg-muted/50 rounded-lg border'>
+                <h4 className='font-medium mb-3 flex items-center gap-2'>
+                  <AlertCircle className='h-4 w-4 text-yellow-600' />
+                  Troubleshooting Connection Issues
+                </h4>
+                <ul className='space-y-2 text-sm text-muted-foreground'>
+                  <li>• <strong>URL Format:</strong> Ensure it starts with http:// or https:// and ends with :8123 (default port). Test opening the URL directly in your browser – you should see the HA login page.</li>
+                  <li>• <strong>Token Validation:</strong> Use a Long-Lived Access Token from HA &gt; Profile &gt; Long-Lived Access Tokens. Tokens expire after 30 days if not used; recreate if needed. Format starts with eyJ... (JWT).</li>
+                  <li>• <strong>Network Access:</strong> If HA is on local network, ensure same WiFi/subnet. For remote, use Nabu Casa or port forwarding. Disable VPN/firewall temporarily to test.</li>
+                  <li>• <strong>CORS Issues:</strong> If error mentions CORS, add your domain to HA's http.cors_allowed_origins in configuration.yaml and restart HA.</li>
+                  <li>• <strong>SSL/TLS:</strong> If using HTTPS, ensure valid certificate. Try HTTP first for local testing.</li>
+                  <li>• <strong>Test Steps:</strong> 1. Verify URL accessible. 2. Regenerate token in HA. 3. Copy-paste carefully (no extra spaces). 4. Check browser console for errors.</li>
+                </ul>
+                <Button 
+                  variant='ghost' 
+                  size='sm' 
+                  onClick={() => window.open('https://www.home-assistant.io/docs/authentication/', '_blank')}
+                  className='mt-2'
+                >
+                  <ExternalLink className='h-4 w-4 mr-1' />
+                  HA Auth Docs
+                </Button>
+              </div>
 
               <Card>
                 <CardHeader>
