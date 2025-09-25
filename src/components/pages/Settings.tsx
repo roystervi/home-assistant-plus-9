@@ -36,7 +36,6 @@ import {
   RefreshCw,
   Key,
 } from "lucide-react";
-import { useSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 
 // Interfaces for type safety
@@ -156,34 +155,17 @@ export default function SettingsPage() {
   const [isLoadingStates, setIsLoadingStates] = useState(false);
   const [haStatusStates, setHaStatusStates] = useState<Record<string, any>>({});
 
-  const { data: session, isPending: sessionPending } = useSession();
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [saveTimeout, setSaveTimeout] = useState<NodeJS.Timeout | null>(null);
 
   // Load from storage on mount
   useEffect(() => {
-    if (sessionPending) return;
-
-    if (!session?.user) {
-      router.push(`/login?redirect=${encodeURIComponent('/settings')}`);
-      return;
-    }
-
     const fetchSettings = async () => {
       try {
-        const token = localStorage.getItem("bearer_token");
-        if (!token) throw new Error("No auth token");
-
-        const res = await fetch("/api/settings", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetch("/api/settings");
 
         if (!res.ok) {
-          if (res.status === 401) {
-            router.push("/login");
-            return;
-          }
           throw new Error(`HTTP ${res.status}`);
         }
 
@@ -244,7 +226,7 @@ export default function SettingsPage() {
     };
 
     fetchSettings();
-  }, [session, sessionPending, router]);
+  }, [router]);
 
   // Add useEffect for display mode application
   useEffect(() => {
@@ -256,8 +238,6 @@ export default function SettingsPage() {
 
   // Save to storage on changes
   useEffect(() => {
-    if (!session?.user) return;
-
     if (saveTimeout) clearTimeout(saveTimeout);
 
     const timeout = setTimeout(() => {
@@ -293,7 +273,7 @@ export default function SettingsPage() {
   ]);
 
   const saveAllSettings = useCallback(async () => {
-    if (!session?.user || isSaving) return;
+    if (isSaving) return;
 
     setIsSaving(true);
     if (saveTimeout) clearTimeout(saveTimeout);
@@ -336,24 +316,15 @@ export default function SettingsPage() {
         },
       };
 
-      const token = localStorage.getItem("bearer_token");
-      if (!token) throw new Error("No auth token");
-
       const res = await fetch("/api/settings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ settings: allSettings }),
       });
 
       if (!res.ok) {
-        if (res.status === 401) {
-          toast.error("Session expired. Please log in again.");
-          router.push("/login");
-          return;
-        }
         const { error, code } = await res.json().catch(() => ({}));
         throw new Error(error || `HTTP ${res.status} ${code}`);
       }
@@ -366,7 +337,6 @@ export default function SettingsPage() {
       setIsSaving(false);
     }
   }, [
-    session,
     haUrl,
     haToken,
     haTimeout,
@@ -391,7 +361,6 @@ export default function SettingsPage() {
     detailedLogs,
     isSaving,
     saveTimeout,
-    router,
   ]);
 
   const handleDisplayModeChange = useCallback((mode) => {
@@ -984,7 +953,7 @@ export default function SettingsPage() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className='space-y-6'>
-        <TabsList className='grid w-full grid-cols-2 h-auto p-1'>
+        <TabsList className='grid w-full grid-cols-4 h-auto p-1'>
           <TabsTrigger value='connections' className='data-[state=active]:bg-primary data-[state=active]:text-primary-foreground'>
             <Home className='h-4 w-4 mr-2' />
             Connections
@@ -1318,8 +1287,6 @@ export default function SettingsPage() {
 
                             setWeatherLocation(newLocation);
                             toast.success(`Location detected: ${newLocation.city || latitude.toFixed(4)}, ${newLocation.country || longitude.toFixed(4)}`);
-
-                            weatherApiSettings.setSetting('location', newLocation);
                           },
                           (error) => {
                             toast.error(`Location detection failed: ${error.message}`);
@@ -1480,8 +1447,6 @@ export default function SettingsPage() {
 
                           setWeatherLocation(newLocation);
                           toast.success(`Location set via ZIP: ${city}, ${countryCode}`);
-
-                          weatherApiSettings.setSetting('location', newLocation);
                         } catch (error) {
                           toast.error(`ZIP lookup failed: ${error.message}`);
                         } finally {
