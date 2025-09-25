@@ -106,60 +106,51 @@ interface BillingRateStructure {
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("connections");
-
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     ha: "disconnected",
     weather: "not_configured",
-    energy: "not_configured"
+    energy: "not_configured",
   });
-
   const [haUrl, setHaUrl] = useState("");
   const [haToken, setHaToken] = useState("");
   const [haTimeout, setHaTimeout] = useState(5000);
-
   const [weatherProvider, setWeatherProvider] = useState("openweathermap");
   const [weatherApiKey, setWeatherApiKey] = useState("");
   const [weatherLocation, setWeatherLocation] = useState<WeatherLocation>({ lat: 0, lon: 0, city: "", country: "", zip: "", locationKey: "" });
   const [weatherUnits, setWeatherUnits] = useState("imperial");
-
   const [energyProvider, setEnergyProvider] = useState("manual");
   const [costPerKwh, setCostPerKwh] = useState(0.12);
   const [energyTimezone, setEnergyTimezone] = useState("America/New_York");
   const [utilityApiKey, setUtilityApiKey] = useState("");
   const [senseEmail, setSenseEmail] = useState("");
   const [sensePassword, setSensePassword] = useState("");
-
   const [appearance, setAppearance] = useState<AppearanceSettings>({
     theme: "auto",
     backgroundColor: "#f3f4f6",
     textSize: 16,
     textWeight: "normal",
     textColor: "#111827",
-    displayMode: "desktop"
+    displayMode: "desktop",
   });
-
   const [localServices, setLocalServices] = useState<LocalServices>({
     sqlitePath: "./data/homeassistant.db",
-    dbSize: "12.5 MB"
+    dbSize: "12.5 MB",
   });
-
   const [billingRates, setBillingRates] = useState<BillingRateStructure>({
     tiers: [{ min: 0, max: 1000, rate: 0.12 }, { min: 1000, max: 2000, rate: 0.15 }, { min: 2000, max: null, rate: 0.18 }],
     fixedCharges: [{ name: "Basic Service Charge", amount: 8.95 }, { name: "Distribution Charge", amount: 12.50 }, { name: "Transmission Charge", amount: 4.25 }],
-    taxes: [{ name: "State Tax", rate: 6.25 }, { name: "Municipal Tax", rate: 2.50 }]
+    taxes: [{ name: "State Tax", rate: 6.25 }, { name: "Municipal Tax", rate: 2.50 }],
   });
-
   const [googleClientId, setGoogleClientId] = useState("");
   const [googleClientSecret, setGoogleClientSecret] = useState("");
-
   const [openaiApiKey, setOpenaiApiKey] = useState("");
   const [openWeatherKey, setOpenWeatherKey] = useState("");
   const [weatherApiComKey, setWeatherApiComKey] = useState("");
-
   const [backupProgress, setBackupProgress] = useState(0);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [detailedLogs, setDetailedLogs] = useState(false);
   const [isLoadingStates, setIsLoadingStates] = useState(false);
+  const [haStatusStates, setHaStatusStates] = useState<Record<string, string>>({});
 
   // Load from storage on mount
   useEffect(() => {
@@ -173,26 +164,26 @@ export default function SettingsPage() {
       if (haSettings.token) setHaToken(haSettings.token);
       if (haSettings.connectionTimeout) setHaTimeout(haSettings.connectionTimeout);
 
-      if (weatherSettings.provider) setWeatherProvider(weatherSettings.provider as any);
+      if (weatherSettings.provider) setWeatherProvider(weatherSettings.provider);
       if (weatherSettings.apiKey) setWeatherApiKey(weatherSettings.apiKey);
       if (weatherSettings.location) setWeatherLocation(weatherSettings.location);
       if (weatherSettings.units) setWeatherUnits(weatherSettings.units);
-      if (weatherSettings.isConfigured) setConnectionStatus(prev => ({ ...prev, weather: "configured" }));
+      if (weatherSettings.isConfigured) setConnectionStatus((prev) => ({ ...prev, weather: "configured" }));
 
-      if (energySettings.provider) setEnergyProvider(energySettings.provider as any);
+      if (energySettings.provider) setEnergyProvider(energySettings.provider);
       if (energySettings.costPerKwh) setCostPerKwh(energySettings.costPerKwh);
       if (energySettings.timezone) setEnergyTimezone(energySettings.timezone);
       if (energySettings.utilityApiKey) setUtilityApiKey(energySettings.utilityApiKey);
       if (energySettings.senseEmail) setSenseEmail(energySettings.senseEmail);
       if (energySettings.sensePassword) setSensePassword(energySettings.sensePassword);
-      if (energySettings.isConfigured) setConnectionStatus(prev => ({ ...prev, energy: "configured" }));
+      if (energySettings.isConfigured) setConnectionStatus((prev) => ({ ...prev, energy: "configured" }));
 
-      if (appearanceData.theme) setAppearance(prev => ({ ...prev, theme: appearanceData.theme }));
-      if (appearanceData.backgroundColor) setAppearance(prev => ({ ...prev, backgroundColor: appearanceData.backgroundColor }));
-      if (appearanceData.textSize) setAppearance(prev => ({ ...prev, textSize: appearanceData.textSize }));
-      if (appearanceData.textWeight) setAppearance(prev => ({ ...prev, textWeight: appearanceData.textWeight }));
-      if (appearanceData.textColor) setAppearance(prev => ({ ...prev, textColor: appearanceData.textColor }));
-      if (appearanceData.displayMode) setAppearance(prev => ({ ...prev, displayMode: appearanceData.displayMode }));
+      if (appearanceData.theme) setAppearance((prev) => ({ ...prev, theme: appearanceData.theme }));
+      if (appearanceData.backgroundColor) setAppearance((prev) => ({ ...prev, backgroundColor: appearanceData.backgroundColor }));
+      if (appearanceData.textSize) setAppearance((prev) => ({ ...prev, textSize: appearanceData.textSize }));
+      if (appearanceData.textWeight) setAppearance((prev) => ({ ...prev, textWeight: appearanceData.textWeight }));
+      if (appearanceData.textColor) setAppearance((prev) => ({ ...prev, textColor: appearanceData.textColor }));
+      if (appearanceData.displayMode) setAppearance((prev) => ({ ...prev, displayMode: appearanceData.displayMode }));
 
       const billingData = energyApiSettings.getSetting("billingRates");
       if (billingData) setBillingRates(billingData);
@@ -201,7 +192,7 @@ export default function SettingsPage() {
       if (typeof window !== "undefined") {
         const savedDisplayMode = localStorage.getItem("displayMode") as "tv" | "desktop" | "tablet" | "phone" | null;
         if (savedDisplayMode) {
-          setAppearance(prev => ({ ...prev, displayMode: savedDisplayMode }));
+          setAppearance((prev) => ({ ...prev, displayMode: savedDisplayMode }));
           document.documentElement.classList.remove("display-tv", "display-desktop", "display-tablet", "display-phone");
           document.documentElement.classList.add(`display-${savedDisplayMode}`);
         }
@@ -236,30 +227,15 @@ export default function SettingsPage() {
   }, [haUrl, haToken, haTimeout, weatherProvider, weatherApiKey, weatherLocation, weatherUnits, energyProvider, costPerKwh, energyTimezone, utilityApiKey, senseEmail, sensePassword, billingRates, appearance]);
 
   const handleDisplayModeChange = (mode: "tv" | "desktop" | "tablet" | "phone") => {
-    setAppearance(prev => ({ ...prev, displayMode: mode }));
+    setAppearance((prev) => ({ ...prev, displayMode: mode }));
 
     if (typeof document !== "undefined") {
       document.documentElement.classList.remove("display-tv", "display-desktop", "display-tablet", "display-phone");
       document.documentElement.classList.add(`display-${mode}`);
     }
 
-    let newTextSize = 16;
-    switch (mode) {
-      case "tv":
-        newTextSize = 24;
-        break;
-      case "desktop":
-        newTextSize = 16;
-        break;
-      case "tablet":
-        newTextSize = 18;
-        break;
-      case "phone":
-        newTextSize = 14;
-        break;
-    }
-
-    setAppearance(prev => ({ ...prev, textSize: newTextSize }));
+    const newTextSize = mode === "tv" ? 24 : mode === "tablet" ? 18 : mode === "phone" ? 14 : 16;
+    setAppearance((prev) => ({ ...prev, textSize: newTextSize }));
 
     if (typeof document !== "undefined") {
       document.documentElement.style.setProperty("--base-text-size", `${newTextSize}px`);
@@ -269,11 +245,11 @@ export default function SettingsPage() {
   };
 
   const handleThemeChange = (theme: "light" | "dark" | "auto") => {
-    setAppearance(prev => ({ ...prev, theme }));
+    setAppearance((prev) => ({ ...prev, theme: theme }));
   };
 
   const handleBackgroundChange = (color: string) => {
-    setAppearance(prev => ({ ...prev, backgroundColor: color }));
+    setAppearance((prev) => ({ ...prev, backgroundColor: color }));
     if (typeof document !== "undefined") {
       document.documentElement.style.setProperty("--color-background", color);
     }
@@ -281,18 +257,18 @@ export default function SettingsPage() {
 
   const handleTextSizeChange = (size: number[]) => {
     const newSize = size[0];
-    setAppearance(prev => ({ ...prev, textSize: newSize }));
+    setAppearance((prev) => ({ ...prev, textSize: newSize }));
     if (typeof document !== "undefined") {
       document.documentElement.style.setProperty("--base-text-size", `${newSize}px`);
     }
   };
 
   const handleTextWeightChange = (weight: "normal" | "bold") => {
-    setAppearance(prev => ({ ...prev, textWeight: weight }));
+    setAppearance((prev) => ({ ...prev, textWeight: weight }));
   };
 
   const handleTextColorChange = (color: string) => {
-    setAppearance(prev => ({ ...prev, textColor: color }));
+    setAppearance((prev) => ({ ...prev, textColor: color }));
     if (typeof document !== "undefined") {
       document.documentElement.style.setProperty("--foreground-default", color);
     }
@@ -304,19 +280,19 @@ export default function SettingsPage() {
       return;
     }
 
-    setConnectionStatus(prev => ({ ...prev, ha: "testing" }));
+    setConnectionStatus((prev) => ({ ...prev, ha: "testing" }));
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), haTimeout);
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), haTimeout);
-
       const response = await fetch(`${haUrl}/api/`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${haToken}`,
           "Content-Type": "application/json",
         },
-        signal: controller.signal
+        signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
@@ -324,7 +300,7 @@ export default function SettingsPage() {
       if (response.ok) {
         const data = await response.json();
         if (data.message === "API running.") {
-          setConnectionStatus(prev => ({ ...prev, ha: "connected" }));
+          setConnectionStatus((prev) => ({ ...prev, ha: "connected" }));
           toast.success("Home Assistant connected successfully!");
         } else {
           throw new Error("Invalid response from HA");
@@ -332,13 +308,13 @@ export default function SettingsPage() {
       } else {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-    } catch (error: any) {
-      setConnectionStatus(prev => ({ ...prev, ha: "disconnected" }));
+    } catch (error) {
+      setConnectionStatus((prev) => ({ ...prev, ha: "disconnected" }));
 
       if (error.name === "AbortError") {
         toast.error("Connection timeout - check URL and network");
       } else {
-        toast.error(`Failed to connect: ${error.message}`);
+        toast.error(`Failed to connect: ${(error as Error).message}`);
       }
     }
   };
@@ -357,7 +333,7 @@ export default function SettingsPage() {
         "update.home_assistant_core_update",
         "update.home_assistant_matter_hub_update",
         "update.home_assistant_operating_system_update",
-        "update.home_assistant_supervisor_update"
+        "update.home_assistant_supervisor_update",
       ];
 
       const states: Partial<Record<string, string>> = {};
@@ -368,7 +344,7 @@ export default function SettingsPage() {
             headers: {
               Authorization: `Bearer ${haToken}`,
               "Content-Type": "application/json",
-            }
+            },
           });
 
           if (response.ok) {
@@ -407,11 +383,11 @@ export default function SettingsPage() {
       return;
     }
 
-    setConnectionStatus(prev => ({ ...prev, weather: "testing" }));
+    setConnectionStatus((prev) => ({ ...prev, weather: "testing" }));
 
     try {
       let testUrl = "";
-      let headers: Record<string, string> = {};
+      let headers = {};
 
       switch (weatherProvider) {
         case "openweathermap":
@@ -457,14 +433,14 @@ export default function SettingsPage() {
 
       if (response.ok) {
         toast.success(`${weatherProvider} weather API connected successfully!`);
-        setConnectionStatus(prev => ({ ...prev, weather: "configured" }));
+        setConnectionStatus((prev) => ({ ...prev, weather: "configured" }));
       } else {
         const errorText = await response.text();
         throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}...`);
       }
-    } catch (error: any) {
-      toast.error(`Weather API test failed: ${error.message}`);
-      setConnectionStatus(prev => ({ ...prev, weather: "not_configured" }));
+    } catch (error) {
+      toast.error(`Weather API test failed: ${(error as Error).message}`);
+      setConnectionStatus((prev) => ({ ...prev, weather: "not_configured" }));
     }
   };
 
@@ -539,19 +515,19 @@ export default function SettingsPage() {
             weatherApiSettings.setSetting("location", newLocation);
           },
           (error) => {
-            toast.error("Location detection failed: " + error.message);
+            toast.error(`Location detection failed: ${error.message}`);
           },
           {
             enableHighAccuracy: true,
             timeout: 10000,
-            maximumAge: 300000
+            maximumAge: 300000,
           }
         );
       } else {
         toast.error("Geolocation is not supported by this browser");
       }
     } catch (error) {
-      toast.error("Failed to detect location: " + error.message);
+      toast.error(`Failed to detect location: ${(error as Error).message}`);
     }
   };
 
@@ -588,18 +564,26 @@ export default function SettingsPage() {
 
       const data = await response.json();
 
-      let lat: number, lon: number, city: string, countryCode: string, locationKey?: string;
+      let lat;
+      let lon;
+      let city;
+      let countryCode;
+      let locationKey;
 
       switch (weatherProvider) {
         case "openweathermap":
-          if (!data.lat || !data.lon) throw new Error("Invalid ZIP code");
+          if (!data.lat || !data.lon) {
+            throw new Error("Invalid ZIP code");
+          }
           lat = data.lat;
           lon = data.lon;
           city = data.name;
           countryCode = data.country;
           break;
         case "weatherapi":
-          if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid ZIP code");
+          if (!Array.isArray(data) || data.length === 0) {
+            throw new Error("Invalid ZIP code");
+          }
           const firstResult = data[0];
           lat = firstResult.lat;
           lon = firstResult.lon;
@@ -607,7 +591,9 @@ export default function SettingsPage() {
           countryCode = firstResult.country;
           break;
         case "accuweather":
-          if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid ZIP code");
+          if (!Array.isArray(data) || data.length === 0) {
+            throw new Error("Invalid ZIP code");
+          }
           const accuResult = data[0];
           lat = accuResult.GeoPosition.Latitude;
           lon = accuResult.GeoPosition.Longitude;
@@ -625,15 +611,15 @@ export default function SettingsPage() {
         city,
         country: countryCode,
         zip: weatherLocation.zip,
-        locationKey
+        locationKey,
       };
 
       setWeatherLocation(newLocation);
       weatherApiSettings.setSetting("location", newLocation);
 
       toast.success(`Location set via ZIP: ${city}, ${countryCode}`);
-    } catch (error: any) {
-      toast.error(`ZIP lookup failed: ${error.message}`);
+    } catch (error) {
+      toast.error(`ZIP lookup failed: ${(error as Error).message}`);
     }
   };
 
@@ -664,7 +650,7 @@ export default function SettingsPage() {
         toast.error(`Google OAuth test failed: ${errorData.error_description || errorData.error}`);
       }
     } catch (error) {
-      toast.error(`Google OAuth test failed: ${error.message}`);
+      toast.error(`Google OAuth test failed: ${(error as Error).message}`);
     }
   };
 
@@ -690,9 +676,11 @@ export default function SettingsPage() {
     setBackupProgress(0);
 
     try {
-      for (let i = 0; i <= 100; i += 10) {
+      let i = 0;
+      while (i <= 100) {
         setBackupProgress(i);
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        i += 10;
       }
 
       const backupData = {
@@ -707,16 +695,16 @@ export default function SettingsPage() {
           googleClientSecret,
           openaiApiKey,
           openWeatherKey,
-          weatherApiComKey
+          weatherApiComKey,
         },
-        version: "1.0.0"
+        version: "1.0.0",
       };
 
       const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `homecontrol-settings-${new Date().toISOString().split('T')[0]}.json`;
+      link.download = `homecontrol-settings-${new Date().toISOString().split("T")[0]}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -731,31 +719,35 @@ export default function SettingsPage() {
     }
   };
 
-  const importBackup = async (file: File) => {
-    try {
-      const text = await file.text();
-      const backupData = JSON.parse(text);
+  const importBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-      if (backupData.settings) {
-        if (backupData.settings.haConnection) haConnectionSettings.set(backupData.settings.haConnection);
-        if (backupData.settings.weatherApi) weatherApiSettings.set(backupData.settings.weatherApi);
-        if (backupData.settings.energyApi) energyApiSettings.set(backupData.settings.energyApi);
-        if (backupData.settings.appearance) setAppearance(backupData.settings.appearance);
-        if (backupData.settings.localServices) setLocalServices(backupData.settings.localServices);
-        if (backupData.settings.googleClientId) setGoogleClientId(backupData.settings.googleClientId);
-        if (backupData.settings.googleClientSecret) setGoogleClientSecret(backupData.settings.googleClientSecret);
-        if (backupData.settings.openaiApiKey) setOpenaiApiKey(backupData.settings.openaiApiKey);
-        if (backupData.settings.openWeatherKey) setOpenWeatherKey(backupData.settings.openWeatherKey);
-        if (backupData.settings.weatherApiComKey) setWeatherApiComKey(backupData.settings.weatherApiComKey);
+    file.text()
+      .then((text) => {
+        const backupData = JSON.parse(text);
 
-        toast.success("Settings backup imported successfully");
-        setTimeout(() => window.location.reload(), 1000);
-      } else {
-        throw new Error("Invalid backup file format");
-      }
-    } catch (error) {
-      toast.error(`Failed to import backup: ${error.message}`);
-    }
+        if (backupData.settings) {
+          if (backupData.settings.haConnection) haConnectionSettings.set(backupData.settings.haConnection);
+          if (backupData.settings.weatherApi) weatherApiSettings.set(backupData.settings.weatherApi);
+          if (backupData.settings.energyApi) energyApiSettings.set(backupData.settings.energyApi);
+          if (backupData.settings.appearance) setAppearance(backupData.settings.appearance as AppearanceSettings);
+          if (backupData.settings.localServices) setLocalServices(backupData.settings.localServices);
+          if (backupData.settings.googleClientId) setGoogleClientId(backupData.settings.googleClientId);
+          if (backupData.settings.googleClientSecret) setGoogleClientSecret(backupData.settings.googleClientSecret);
+          if (backupData.settings.openaiApiKey) setOpenaiApiKey(backupData.settings.openaiApiKey);
+          if (backupData.settings.openWeatherKey) setOpenWeatherKey(backupData.settings.openWeatherKey);
+          if (backupData.settings.weatherApiComKey) setWeatherApiComKey(backupData.settings.weatherApiComKey);
+
+          toast.success("Settings backup imported successfully");
+          setTimeout(() => window.location.reload(), 1000);
+        } else {
+          throw new Error("Invalid backup file format");
+        }
+      })
+      .catch((error) => {
+        toast.error(`Failed to import backup: ${error.message}`);
+      });
   };
 
   const resetToDefaults = () => {
@@ -783,16 +775,16 @@ export default function SettingsPage() {
       textSize: 16,
       textWeight: "normal",
       textColor: "#111827",
-      displayMode: "desktop"
+      displayMode: "desktop",
     });
     setLocalServices({
       sqlitePath: "./data/homeassistant.db",
-      dbSize: "12.5 MB"
+      dbSize: "12.5 MB",
     });
     setBillingRates({
       tiers: [{ min: 0, max: 1000, rate: 0.12 }, { min: 1000, max: 2000, rate: 0.15 }, { min: 2000, max: null, rate: 0.18 }],
       fixedCharges: [{ name: "Basic Service Charge", amount: 8.95 }, { name: "Distribution Charge", amount: 12.50 }, { name: "Transmission Charge", amount: 4.25 }],
-      taxes: [{ name: "State Tax", rate: 6.25 }, { name: "Municipal Tax", rate: 2.50 }]
+      taxes: [{ name: "State Tax", rate: 6.25 }, { name: "Municipal Tax", rate: 2.50 }],
     });
 
     setGoogleClientId("");
@@ -804,7 +796,7 @@ export default function SettingsPage() {
     setConnectionStatus({
       ha: "disconnected",
       weather: "not_configured",
-      energy: "not_configured"
+      energy: "not_configured",
     });
     setBackupProgress(0);
     setIsBackingUp(false);
@@ -822,71 +814,71 @@ export default function SettingsPage() {
   };
 
   const addRateTier = () => {
-    setBillingRates(prev => ({
+    setBillingRates((prev) => ({
       ...prev,
-      tiers: [...prev.tiers, { min: 0, max: null, rate: 0.12 }]
+      tiers: [...prev.tiers, { min: 0, max: null, rate: 0.12 }],
     }));
   };
 
   const updateRateTier = (index: number, field: "min" | "max" | "rate", value: number | null) => {
-    setBillingRates(prev => ({
+    setBillingRates((prev) => ({
       ...prev,
       tiers: prev.tiers.map((tier, i) => 
         i === index ? { ...tier, [field]: value } : tier
-      )
+      ),
     }));
   };
 
   const removeRateTier = (index: number) => {
-    setBillingRates(prev => ({
+    setBillingRates((prev) => ({
       ...prev,
-      tiers: prev.tiers.filter((_, i) => i !== index)
+      tiers: prev.tiers.filter((_, i) => i !== index),
     }));
   };
 
   const addFixedCharge = () => {
-    setBillingRates(prev => ({
+    setBillingRates((prev) => ({
       ...prev,
-      fixedCharges: [...prev.fixedCharges, { name: "New Charge", amount: 0 }]
+      fixedCharges: [...prev.fixedCharges, { name: "New Charge", amount: 0 }],
     }));
   };
 
   const updateFixedCharge = (index: number, field: "name" | "amount", value: string | number) => {
-    setBillingRates(prev => ({
+    setBillingRates((prev) => ({
       ...prev,
       fixedCharges: prev.fixedCharges.map((charge, i) => 
         i === index ? { ...charge, [field]: value } : charge
-      )
+      ),
     }));
   };
 
   const removeFixedCharge = (index: number) => {
-    setBillingRates(prev => ({
+    setBillingRates((prev) => ({
       ...prev,
-      fixedCharges: prev.fixedCharges.filter((_, i) => i !== index)
+      fixedCharges: prev.fixedCharges.filter((_, i) => i !== index),
     }));
   };
 
   const addTax = () => {
-    setBillingRates(prev => ({
+    setBillingRates((prev) => ({
       ...prev,
-      taxes: [...prev.taxes, { name: "New Tax", rate: 0 }]
+      taxes: [...prev.taxes, { name: "New Tax", rate: 0 }],
     }));
   };
 
   const updateTax = (index: number, field: "name" | "rate", value: string | number) => {
-    setBillingRates(prev => ({
+    setBillingRates((prev) => ({
       ...prev,
       taxes: prev.taxes.map((tax, i) => 
         i === index ? { ...tax, [field]: value } : tax
-      )
+      ),
     }));
   };
 
   const removeTax = (index: number) => {
-    setBillingRates(prev => ({
+    setBillingRates((prev) => ({
       ...prev,
-      taxes: prev.taxes.filter((_, i) => i !== index)
+      taxes: prev.taxes.filter((_, i) => i !== index),
     }));
   };
 
@@ -899,12 +891,12 @@ export default function SettingsPage() {
     setBillingRates({
       tiers: [{ min: 0, max: 1000, rate: 0.12 }, { min: 1000, max: 2000, rate: 0.15 }, { min: 2000, max: null, rate: 0.18 }],
       fixedCharges: [{ name: "Basic Service Charge", amount: 8.95 }, { name: "Distribution Charge", amount: 12.50 }, { name: "Transmission Charge", amount: 4.25 }],
-      taxes: [{ name: "State Tax", rate: 6.25 }, { name: "Municipal Tax", rate: 2.50 }]
+      taxes: [{ name: "State Tax", rate: 6.25 }, { name: "Municipal Tax", rate: 2.50 }],
     });
     toast.success("Billing rates reset to defaults");
   };
 
-  // Utility functions - getConnectionIcon
+  // Utility functions
   const getConnectionIcon = (status: string) => {
     switch (status) {
       case "connected":
@@ -924,17 +916,20 @@ export default function SettingsPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "connected":
+      case "configured":
       case "running":
         return "bg-green-500";
       case "testing":
       case "starting":
       case "stopping":
       case "connecting":
-        return "bg-yellow-500";
+        return "bg-yellow-500 animate-pulse";
       default:
         return "bg-red-500";
     }
   };
+
+  const getConnectionIndicator = (status: string) => <div className={`w-2 h-2 rounded-full ${getStatusColor(status)}`} />;
 
   const getStateStatusColor = (state: string) => {
     switch (state) {
@@ -945,12 +940,20 @@ export default function SettingsPage() {
       case "unavailable":
       case "error":
         return "text-red-600";
-      case "updating":
-        return "text-yellow-600";
       default:
         return "text-muted-foreground";
     }
   };
+
+  const backgroundSwatches = [
+    { name: "Light Gray", value: "#f3f4f6" },
+    { name: "White", value: "#ffffff" },
+    { name: "Blue", value: "#eff6ff" },
+    { name: "Green", value: "#f0fdf4" },
+    { name: "Yellow", value: "#fefce8" },
+    { name: "Red", value: "#fef2f2" },
+    { name: "Purple", value: "#faf5ff" },
+  ];
 
   return (
     <div className="space-y-6">
@@ -972,15 +975,15 @@ export default function SettingsPage() {
           
           <div className="grid grid-cols-3 gap-4">
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${getConnectionIcon(connectionStatus.ha)}`} />
+              {getConnectionIndicator(connectionStatus.ha)}
               <span className="text-sm">Home Assistant</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${getConnectionIcon(connectionStatus.weather)}`} />
+              {getConnectionIndicator(connectionStatus.weather)}
               <span className="text-sm">Weather API</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${getConnectionIcon(connectionStatus.energy)}`} />
+              {getConnectionIndicator(connectionStatus.energy)}
               <span className="text-sm">Energy API</span>
             </div>
           </div>
@@ -988,7 +991,7 @@ export default function SettingsPage() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 h-14">
+        <TabsList className="grid w-full grid-cols-2 h-auto p-1">
           <TabsTrigger value="connections" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <Home className="h-4 w-4 mr-2" />
             Connections
@@ -1042,7 +1045,6 @@ export default function SettingsPage() {
                     onChange={(e) => setHaUrl(e.target.value)}
                   />
                 </div>
-                
                 <div>
                   <Label htmlFor="ha-token">Long-lived Access Token</Label>
                   <Input
@@ -1136,10 +1138,10 @@ export default function SettingsPage() {
                           {Object.entries(haStatusStates).map(([entityId, state]) => (
                             <div key={entityId} className="flex items-center justify-between p-3 rounded-lg border">
                               <div>
-                                <p className="font-medium text-sm capitalize">{entityId.replace(/_/g, ' ').replace('update', 'Update').replace('conversation', 'Conversation')}</p>
+                                <p className="font-medium text-sm capitalize">{entityId.replace(/_/g, " ").replace("update", "Update").replace("conversation", "Conversation")}</p>
                                 <p className="text-xs text-muted-foreground">Entity: {entityId}</p>
                               </div>
-                              <Badge variant="outline" className={getStateStatusColor(state as string)}>
+                              <Badge variant="outline" className={getStateStatusColor(state)}>
                                 {state}
                               </Badge>
                             </div>
@@ -1168,9 +1170,9 @@ export default function SettingsPage() {
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  {getConnectionIcon(connectionStatus.weather)}
+                  {getConnectionIndicator(connectionStatus.weather)}
                   <Badge variant={connectionStatus.weather === "configured" ? "default" : "secondary"}>
-                    {connectionStatus.weather.replace("_", " ")}
+                    {connectionStatus.weather.replace(/_/g, " ")}
                   </Badge>
                 </div>
               </div>
@@ -1230,11 +1232,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="flex items-end">
-                  <Button
-                    onClick={detectLocation}
-                    variant="outline"
-                    className="w-full"
-                  >
+                  <Button variant="outline" onClick={detectLocation} className="w-full">
                     <MapPin className="h-4 w-4 mr-2" />
                     Detect Location
                   </Button>
@@ -1265,9 +1263,7 @@ export default function SettingsPage() {
                     <strong>Location:</strong> {weatherLocation.city}, {weatherLocation.country}
                   </p>
                   {weatherProvider === "accuweather" && weatherLocation.locationKey && (
-                    <p className="text-xs text-muted-foreground">
-                      Location Key: {weatherLocation.locationKey}
-                    </p>
+                    <p className="text-xs text-muted-foreground">Location Key: {weatherLocation.locationKey}</p>
                   )}
                   <p className="text-xs text-muted-foreground">
                     Coordinates: {weatherLocation.lat.toFixed(4)}, {weatherLocation.lon.toFixed(4)}
@@ -1283,8 +1279,8 @@ export default function SettingsPage() {
                       id="weather-zip"
                       placeholder="90210"
                       maxLength={5}
-                      value={weatherLocation.zip || ''}
-                      onChange={(e) => setWeatherLocation(prev => ({ ...prev, zip: e.target.value }))}
+                      value={weatherLocation.zip || ""}
+                      onChange={(e) => setWeatherLocation((prev) => ({ ...prev, zip: e.target.value }))}
                     />
                   </div>
                   <div className="md:col-span-2">
@@ -1317,9 +1313,9 @@ export default function SettingsPage() {
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  {getConnectionIcon(connectionStatus.energy)}
+                  {getConnectionIndicator(connectionStatus.energy)}
                   <Badge variant={connectionStatus.energy === "configured" ? "default" : "secondary"}>
-                    {connectionStatus.energy.replace("_", " ")}
+                    {connectionStatus.energy.replace(/_/g, " ")}
                   </Badge>
                 </div>
               </div>
@@ -1386,8 +1382,8 @@ export default function SettingsPage() {
                     step="0.01"
                     value={costPerKwh}
                     onChange={(e) => setCostPerKwh(parseFloat(e.target.value) || 0.12)}
-                    min="0"
-                    max="1"
+                    min={0}
+                    max={1}
                   />
                 </div>
                 
@@ -1420,7 +1416,9 @@ export default function SettingsPage() {
                     {billingRates.tiers.map((tier, index) => (
                       <div key={index} className="grid grid-cols-4 gap-3 items-center p-3 border rounded-lg">
                         <div>
-                          <Label htmlFor={`tier-min-${index}`} className="text-xs">Min kWh</Label>
+                          <Label htmlFor={`tier-min-${index}`} className="text-xs">
+                            Min kWh
+                          </Label>
                           <Input
                             id={`tier-min-${index}`}
                             type="number"
@@ -1430,17 +1428,21 @@ export default function SettingsPage() {
                           />
                         </div>
                         <div>
-                          <Label htmlFor={`tier-max-${index}`} className="text-xs">Max kWh</Label>
+                          <Label htmlFor={`tier-max-${index}`} className="text-xs">
+                            Max kWh
+                          </Label>
                           <Input
                             id={`tier-max-${index}`}
                             type="number"
-                            value={tier.max || ''}
+                            value={tier.max ?? ""}
                             onChange={(e) => updateRateTier(index, "max", e.target.value ? parseInt(e.target.value) : null)}
                             placeholder="Unlimited"
                           />
                         </div>
                         <div>
-                          <Label htmlFor={`tier-rate-${index}`} className="text-xs">Rate ($)</Label>
+                          <Label htmlFor={`tier-rate-${index}`} className="text-xs">
+                            Rate ($)
+                          </Label>
                           <Input
                             id={`tier-rate-${index}`}
                             type="number"
@@ -1477,7 +1479,9 @@ export default function SettingsPage() {
                     {billingRates.fixedCharges.map((charge, index) => (
                       <div key={index} className="grid grid-cols-3 gap-3 items-center p-3 border rounded-lg">
                         <div className="col-span-2">
-                          <Label htmlFor={`charge-name-${index}`} className="text-xs">Charge Name</Label>
+                          <Label htmlFor={`charge-name-${index}`} className="text-xs">
+                            Charge Name
+                          </Label>
                           <Input
                             id={`charge-name-${index}`}
                             value={charge.name}
@@ -1486,7 +1490,9 @@ export default function SettingsPage() {
                           />
                         </div>
                         <div>
-                          <Label htmlFor={`charge-amount-${index}`} className="text-xs">Amount ($)</Label>
+                          <Label htmlFor={`charge-amount-${index}`} className="text-xs">
+                            Amount ($)
+                          </Label>
                           <Input
                             id={`charge-amount-${index}`}
                             type="number"
@@ -1522,7 +1528,9 @@ export default function SettingsPage() {
                     {billingRates.taxes.map((tax, index) => (
                       <div key={index} className="grid grid-cols-3 gap-3 items-center p-3 border rounded-lg">
                         <div className="col-span-2">
-                          <Label htmlFor={`tax-name-${index}`} className="text-xs">Tax/Fee Name</Label>
+                          <Label htmlFor={`tax-name-${index}`} className="text-xs">
+                            Tax/Fee Name
+                          </Label>
                           <Input
                             id={`tax-name-${index}`}
                             value={tax.name}
@@ -1531,7 +1539,9 @@ export default function SettingsPage() {
                           />
                         </div>
                         <div>
-                          <Label htmlFor={`tax-rate-${index}`} className="text-xs">Rate (%)</Label>
+                          <Label htmlFor={`tax-rate-${index}`} className="text-xs">
+                            Rate (%)
+                          </Label>
                           <Input
                             id={`tax-rate-${index}`}
                             type="number"
@@ -1560,7 +1570,7 @@ export default function SettingsPage() {
                       <strong>Rate Tiers:</strong>
                       {billingRates.tiers.map((tier, index) => (
                         <div key={index} className="ml-4 text-muted-foreground">
-                          {tier.min} - {tier.max || "∞"} kWh: ${tier.rate.toFixed(4)}/kWh
+                          {tier.min} - {tier.max === null ? "∞" : tier.max} kWh: ${tier.rate.toFixed(4)}/kWh
                         </div>
                       ))}
                     </div>
@@ -1594,9 +1604,7 @@ export default function SettingsPage() {
                 <PcCase className="h-5 w-5" />
                 Local Services
               </CardTitle>
-              <CardDescription>
-                Manage your application's database and storage
-              </CardDescription>
+              <CardDescription>Manage your application's database and storage</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
@@ -1604,7 +1612,7 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   <Input
                     value={localServices.sqlitePath}
-                    onChange={(e) => setLocalServices(prev => ({ ...prev, sqlitePath: e.target.value }))}
+                    onChange={(e) => setLocalServices((prev) => ({ ...prev, sqlitePath: e.target.value }))}
                   />
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
                     <span>Database size</span>
@@ -1643,17 +1651,12 @@ export default function SettingsPage() {
                 <Palette className="h-5 w-5" />
                 Theme & Colors
               </CardTitle>
-              <CardDescription>
-                Customize colors and typography
-              </CardDescription>
+              <CardDescription>Customize colors and typography</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div>
                 <Label>Theme Mode</Label>
-                <Select
-                  value={appearance.theme}
-                  onValueChange={(value: "light" | "dark" | "auto") => handleThemeChange(value)}
-                >
+                <Select value={appearance.theme as string} onValueChange={(value) => handleThemeChange(value as "light" | "dark" | "auto")}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -1671,10 +1674,11 @@ export default function SettingsPage() {
                   {backgroundSwatches.map((swatch) => (
                     <button
                       key={swatch.name}
+                      type="button"
                       className={`w-12 h-12 rounded-md border-2 ${
                         appearance.backgroundColor === swatch.value 
-                          ? 'border-primary ring-2 ring-ring ring-offset-2' 
-                          : 'border-border'
+                          ? "border-primary ring-2 ring-ring ring-offset-2" 
+                          : "border-border"
                       }`}
                       style={{ backgroundColor: swatch.value }}
                       onClick={() => handleBackgroundChange(swatch.value)}
@@ -1701,18 +1705,13 @@ export default function SettingsPage() {
                     step={1}
                     className="w-full"
                   />
-                  <div className="text-sm text-muted-foreground">
-                    Current: {appearance.textSize}px
-                  </div>
+                  <div className="text-sm text-muted-foreground">Current: {appearance.textSize}px</div>
                 </div>
               </div>
 
               <div>
                 <Label>Text Weight</Label>
-                <Select
-                  value={appearance.textWeight}
-                  onValueChange={(value: "normal" | "bold") => handleTextWeightChange(value)}
-                >
+                <Select value={appearance.textWeight as string} onValueChange={(value) => handleTextWeightChange(value as "normal" | "bold")}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -1733,12 +1732,15 @@ export default function SettingsPage() {
                 />
               </div>
 
-              <div className="p-4 rounded-md border" style={{
-                backgroundColor: appearance.backgroundColor,
-                color: appearance.textColor,
-                fontSize: `${appearance.textSize}px`,
-                fontWeight: appearance.textWeight
-              }}>
+              <div
+                className="p-4 rounded-md border"
+                style={{
+                  backgroundColor: appearance.backgroundColor,
+                  color: appearance.textColor,
+                  fontSize: `${appearance.textSize}px`,
+                  fontWeight: appearance.textWeight,
+                }}
+              >
                 <h3 className="font-semibold mb-2">Preview</h3>
                 <p>This is how your text will look with the current settings.</p>
               </div>
@@ -1753,9 +1755,7 @@ export default function SettingsPage() {
                 <Key className="h-5 w-5" />
                 API Keys & Integrations
               </CardTitle>
-              <CardDescription>
-                Enter API keys for third-party services like Google Calendar, OpenAI, etc. These can be shared and configured by multiple users.
-              </CardDescription>
+              <CardDescription>Enter API keys for third-party services like Google Calendar, OpenAI, etc.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
@@ -1777,7 +1777,7 @@ export default function SettingsPage() {
                       onChange={(e) => setGoogleClientId(e.target.value)}
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Get from Google Cloud Console > APIs & Services > Credentials
+                      Get from Google Cloud Console > APIs &amp; Services > Credentials
                     </p>
                   </div>
                   
@@ -1790,9 +1790,7 @@ export default function SettingsPage() {
                       value={googleClientSecret}
                       onChange={(e) => setGoogleClientSecret(e.target.value)}
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Keep this secure. Required for OAuth token exchange.
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Keep this secure. Required for OAuth token exchange.</p>
                   </div>
                 </div>
                 
@@ -1872,7 +1870,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="p-4 bg-blue-50 rounded-lg border">
-                <h4 className="font-medium mb-2 text-blue-900">Security & Privacy Note</h4>
+                <h4 className="font-medium mb-2 text-blue-900">Security &amp; Privacy Note</h4>
                 <ul className="text-sm space-y-1 text-blue-800">
                   <li>• Each user should enter their own API keys in this section</li>
                   <li>• Keys are stored locally in your browser (localStorage)</li>
@@ -1892,9 +1890,7 @@ export default function SettingsPage() {
                 <HardDriveUpload className="w-5 h-5" />
                 Data Management
               </CardTitle>
-              <CardDescription>
-                Backup and restore your settings and data
-              </CardDescription>
+              <CardDescription>Backup and restore your settings and data</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Button onClick={exportBackup} disabled={isBackingUp} className="w-full">
@@ -1920,6 +1916,7 @@ export default function SettingsPage() {
                   onChange={importBackup}
                   className="mt-1"
                 />
+                <p className="text-xs text-muted-foreground mt-1">Upload a .json backup file to restore settings</p>
               </div>
 
               <div className="p-4 bg-red-50 rounded-lg border">
@@ -1937,19 +1934,15 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Settings2 className="w-5 h-5" />
-                Privacy & Logs
+                Privacy &amp; Logs
               </CardTitle>
-              <CardDescription>
-                Control logging and privacy settings
-              </CardDescription>
+              <CardDescription>Control logging and privacy settings</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <Label>Detailed Logging</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Enable verbose logging for debugging
-                  </p>
+                  <p className="text-sm text-muted-foreground">Enable verbose logging for debugging purposes</p>
                 </div>
                 <Switch
                   checked={detailedLogs}
@@ -1959,7 +1952,7 @@ export default function SettingsPage() {
               
               <Button variant="outline" className="w-full">
                 <Activity className="h-4 w-4 mr-2" />
-                View Logs
+                View System Logs
               </Button>
             </CardContent>
           </Card>
@@ -1968,7 +1961,7 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle className="text-destructive">Reset All Settings</CardTitle>
               <CardDescription>
-                Reset all settings to default values
+                This will reset all settings to their default values. This action cannot be undone.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1980,17 +1973,11 @@ export default function SettingsPage() {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Reset All Settings?</AlertDialogTitle>
+                    <AlertDialogTitle>Are you sure you want to reset all settings?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will reset all your settings to their default values. This action cannot be undone.
+                      This will reset all your settings to their default values, including API keys, connections, and preferences.
                       <br />
-                      <strong className="text-destructive">This includes:</strong>
-                      <ul className="list-disc list-inside mt-1">
-                        <li>API keys and tokens</li>
-                        <li>Location and weather settings</li>
-                        <li>Theme and display preferences</li>
-                        <li>All custom configurations</li>
-                      </ul>
+                      <strong>This action cannot be undone.</strong>
                       <br />
                       <strong>Consider creating a backup before proceeding.</strong>
                     </AlertDialogDescription>
