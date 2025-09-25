@@ -109,7 +109,7 @@ export default function SettingsPage() {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     ha: "disconnected",
     weather: "not_configured",
-    energy: "not_configured",
+    energy: "not_configured"
   });
   const [haUrl, setHaUrl] = useState("");
   const [haToken, setHaToken] = useState("");
@@ -311,7 +311,7 @@ export default function SettingsPage() {
     } catch (error) {
       setConnectionStatus((prev) => ({ ...prev, ha: "disconnected" }));
 
-      if (error.name === "AbortError") {
+      if ((error as any).name === "AbortError") {
         toast.error("Connection timeout - check URL and network");
       } else {
         toast.error(`Failed to connect: ${(error as Error).message}`);
@@ -446,86 +446,87 @@ export default function SettingsPage() {
 
   const detectLocation = async () => {
     try {
-      if (navigator.geolocation) {
-        toast.loading("Detecting your location...");
-        navigator.geolocation.getCurrentPosition(
-          async (position) => {
-            const { latitude, longitude } = position.coords;
+      if (!navigator.geolocation) {
+        toast.error("Geolocation is not supported by this browser");
+        return;
+      }
 
-            let newLocation = { lat: latitude, lon: longitude, city: "", country: "", locationKey: "" };
+      toast.loading("Detecting your location...");
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
 
-            if (weatherApiKey && weatherProvider !== "ha_integration") {
-              let city = "Unknown";
-              let country = "Unknown";
-              let locationKey = "";
+          let newLocation = { lat: latitude, lon: longitude, city: "", country: "", locationKey: "" };
 
-              switch (weatherProvider) {
-                case "openweathermap":
-                  const owmResponse = await fetch(
-                    `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${weatherApiKey}`
-                  );
+          if (weatherApiKey && weatherProvider !== "ha_integration") {
+            let city = "Unknown";
+            let country = "Unknown";
+            let locationKey = "";
 
-                  if (owmResponse.ok) {
-                    const owmData = await owmResponse.json();
-                    if (owmData.length > 0) {
-                      city = owmData[0].name;
-                      country = owmData[0].country;
-                    }
+            switch (weatherProvider) {
+              case "openweathermap":
+                const owmResponse = await fetch(
+                  `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${weatherApiKey}`
+                );
+
+                if (owmResponse.ok) {
+                  const owmData = await owmResponse.json();
+                  if (owmData.length > 0) {
+                    city = owmData[0].name;
+                    country = owmData[0].country;
                   }
-                  break;
+                }
+                break;
 
-                case "weatherapi":
-                  const wapResponse = await fetch(
-                    `https://api.weatherapi.com/v1/search.json?key=${weatherApiKey}&q=${latitude},${longitude}`
-                  );
+              case "weatherapi":
+                const wapResponse = await fetch(
+                  `https://api.weatherapi.com/v1/search.json?key=${weatherApiKey}&q=${latitude},${longitude}`
+                );
 
-                  if (wapResponse.ok) {
-                    const wapData = await wapResponse.json();
-                    if (wapData.length > 0) {
-                      city = wapData[0].name;
-                      country = wapData[0].region || wapData[0].country;
-                    }
+                if (wapResponse.ok) {
+                  const wapData = await wapResponse.json();
+                  if (wapData.length > 0) {
+                    city = wapData[0].name;
+                    country = wapData[0].region || wapData[0].country;
                   }
-                  break;
+                }
+                break;
 
-                case "accuweather":
-                  const accuResponse = await fetch(
-                    `https://dataservice.accuweather.com/locations/v1/geoposition/search?apikey=${weatherApiKey}&q=${latitude},${longitude}`
-                  );
+              case "accuweather":
+                const accuResponse = await fetch(
+                  `https://dataservice.accuweather.com/locations/v1/geoposition/search?apikey=${weatherApiKey}&q=${latitude},${longitude}`
+                );
 
-                  if (accuResponse.ok) {
-                    const accuData = await accuResponse.json();
-                    city = accuData.localizedName || accuData.parent?.localizedName || "Unknown";
-                    country = accuData.country?.localizedName || "Unknown";
-                    locationKey = accuData.key;
-                  }
-                  break;
-              }
-
-              newLocation = { ...newLocation, city, country, locationKey };
+                if (accuResponse.ok) {
+                  const accuData = await accuResponse.json();
+                  city = accuData.localizedName || accuData.parent?.localizedName || "Unknown";
+                  country = accuData.country?.localizedName || "Unknown";
+                  locationKey = accuData.key;
+                }
+                break;
             }
 
-            setWeatherLocation(newLocation);
-
-            const locationText = newLocation.city
-              ? `${newLocation.city}, ${newLocation.country}`
-              : `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-            toast.success(`Location detected: ${locationText}`);
-
-            weatherApiSettings.setSetting("location", newLocation);
-          },
-          (error) => {
-            toast.error(`Location detection failed: ${error.message}`);
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 300000,
+            newLocation = { ...newLocation, city, country, locationKey };
           }
-        );
-      } else {
-        toast.error("Geolocation is not supported by this browser");
-      }
+
+          setWeatherLocation(newLocation);
+
+          const locationText = newLocation.city
+            ? `${newLocation.city}, ${newLocation.country}`
+            : `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+          toast.success(`Location detected: ${locationText}`);
+
+          weatherApiSettings.setSetting("location", newLocation);
+        },
+        (error) => {
+          toast.error(`Location detection failed: ${error.message}`);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000,
+        }
+      );
     } catch (error) {
       toast.error(`Failed to detect location: ${(error as Error).message}`);
     }
@@ -564,11 +565,11 @@ export default function SettingsPage() {
 
       const data = await response.json();
 
-      let lat;
-      let lon;
-      let city;
-      let countryCode;
-      let locationKey;
+      let lat: number;
+      let lon: number;
+      let city: string;
+      let countryCode: string;
+      let locationKey?: string;
 
       switch (weatherProvider) {
         case "openweathermap":
@@ -719,35 +720,34 @@ export default function SettingsPage() {
     }
   };
 
-  const importBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const importBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    file.text()
-      .then((text) => {
-        const backupData = JSON.parse(text);
+    try {
+      const text = await file.text();
+      const backupData = JSON.parse(text);
 
-        if (backupData.settings) {
-          if (backupData.settings.haConnection) haConnectionSettings.set(backupData.settings.haConnection);
-          if (backupData.settings.weatherApi) weatherApiSettings.set(backupData.settings.weatherApi);
-          if (backupData.settings.energyApi) energyApiSettings.set(backupData.settings.energyApi);
-          if (backupData.settings.appearance) setAppearance(backupData.settings.appearance as AppearanceSettings);
-          if (backupData.settings.localServices) setLocalServices(backupData.settings.localServices);
-          if (backupData.settings.googleClientId) setGoogleClientId(backupData.settings.googleClientId);
-          if (backupData.settings.googleClientSecret) setGoogleClientSecret(backupData.settings.googleClientSecret);
-          if (backupData.settings.openaiApiKey) setOpenaiApiKey(backupData.settings.openaiApiKey);
-          if (backupData.settings.openWeatherKey) setOpenWeatherKey(backupData.settings.openWeatherKey);
-          if (backupData.settings.weatherApiComKey) setWeatherApiComKey(backupData.settings.weatherApiComKey);
+      if (backupData.settings) {
+        if (backupData.settings.haConnection) haConnectionSettings.set(backupData.settings.haConnection);
+        if (backupData.settings.weatherApi) weatherApiSettings.set(backupData.settings.weatherApi);
+        if (backupData.settings.energyApi) energyApiSettings.set(backupData.settings.energyApi);
+        if (backupData.settings.appearance) setAppearance(backupData.settings.appearance as AppearanceSettings);
+        if (backupData.settings.localServices) setLocalServices(backupData.settings.localServices);
+        if (backupData.settings.googleClientId) setGoogleClientId(backupData.settings.googleClientId);
+        if (backupData.settings.googleClientSecret) setGoogleClientSecret(backupData.settings.googleClientSecret);
+        if (backupData.settings.openaiApiKey) setOpenaiApiKey(backupData.settings.openaiApiKey);
+        if (backupData.settings.openWeatherKey) setOpenWeatherKey(backupData.settings.openWeatherKey);
+        if (backupData.settings.weatherApiComKey) setWeatherApiComKey(backupData.settings.weatherApiComKey);
 
-          toast.success("Settings backup imported successfully");
-          setTimeout(() => window.location.reload(), 1000);
-        } else {
-          throw new Error("Invalid backup file format");
-        }
-      })
-      .catch((error) => {
-        toast.error(`Failed to import backup: ${error.message}`);
-      });
+        toast.success("Settings backup imported successfully");
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        throw new Error("Invalid backup file format");
+      }
+    } catch (error) {
+      toast.error(`Failed to import backup: ${(error as Error).message}`);
+    }
   };
 
   const resetToDefaults = () => {
@@ -796,7 +796,7 @@ export default function SettingsPage() {
     setConnectionStatus({
       ha: "disconnected",
       weather: "not_configured",
-      energy: "not_configured",
+      energy: "not_configured"
     });
     setBackupProgress(0);
     setIsBackingUp(false);
@@ -940,6 +940,8 @@ export default function SettingsPage() {
       case "unavailable":
       case "error":
         return "text-red-600";
+      case "updating":
+        return "text-yellow-600";
       default:
         return "text-muted-foreground";
     }
@@ -1045,6 +1047,7 @@ export default function SettingsPage() {
                     onChange={(e) => setHaUrl(e.target.value)}
                   />
                 </div>
+                
                 <div>
                   <Label htmlFor="ha-token">Long-lived Access Token</Label>
                   <Input
@@ -1656,7 +1659,10 @@ export default function SettingsPage() {
             <CardContent className="space-y-6">
               <div>
                 <Label>Theme Mode</Label>
-                <Select value={appearance.theme as string} onValueChange={(value) => handleThemeChange(value as "light" | "dark" | "auto")}>
+                <Select
+                  value={appearance.theme as string}
+                  onValueChange={(value) => handleThemeChange(value as "light" | "dark" | "auto")}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -1711,7 +1717,10 @@ export default function SettingsPage() {
 
               <div>
                 <Label>Text Weight</Label>
-                <Select value={appearance.textWeight as string} onValueChange={(value) => handleTextWeightChange(value as "normal" | "bold")}>
+                <Select
+                  value={appearance.textWeight as string}
+                  onValueChange={(value) => handleTextWeightChange(value as "normal" | "bold")}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -1777,7 +1786,7 @@ export default function SettingsPage() {
                       onChange={(e) => setGoogleClientId(e.target.value)}
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Get from Google Cloud Console > APIs &amp; Services > Credentials
+                      Get from Google Cloud Console &gt; APIs &amp; Services &gt; Credentials
                     </p>
                   </div>
                   
@@ -1934,7 +1943,7 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Settings2 className="w-5 h-5" />
-                Privacy &amp; Logs
+                Privacy & Logs
               </CardTitle>
               <CardDescription>Control logging and privacy settings</CardDescription>
             </CardHeader>
