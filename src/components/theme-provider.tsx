@@ -2,7 +2,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react"
 import { toast } from "sonner"
-import { useSession } from "@/lib/auth-client"
 
 interface BackgroundContextType {
   customBgColor: string | null;
@@ -24,8 +23,6 @@ interface BackgroundContextType {
 const BackgroundContext = createContext<BackgroundContextType | undefined>(undefined);
 
 export function BackgroundProvider({ children }: { children: ReactNode }) {
-  const { data: session } = useSession();
-
   // Theme state
   const [theme, setThemeState] = useState<"light" | "dark" | "system">("system");
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
@@ -158,55 +155,22 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
     }
   }, [backgroundMode, customBgColor, backgroundImage]);
 
-  // Save function
+  // Save function - local only
   const [isSaving, setIsSaving] = useState(false);
 
   const saveBackgroundSettings = useCallback(async () => {
-    if (!session?.user?.id) {
-      toast.error("Please log in to save background settings");
-      return;
-    }
+    setIsSaving(true);
 
-    const token = localStorage.getItem("bearer_token");
-    if (!token) {
-      toast.error("Authentication error");
-      return;
-    }
+    // Save to localStorage only
+    if (backgroundMode) localStorage.setItem("backgroundMode", backgroundMode);
+    if (customBgColor) localStorage.setItem("customBgColor", customBgColor);
+    else localStorage.removeItem("customBgColor");
+    if (backgroundImage) localStorage.setItem("backgroundImage", backgroundImage);
+    else localStorage.removeItem("backgroundImage");
 
-    try {
-      setIsSaving(true);
-      const response = await fetch("/api/background-settings", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          backgroundMode,
-          customBgColor,
-          backgroundImage,
-        }),
-      });
-
-      if (response.ok) {
-        toast.success("Background settings saved successfully");
-        // Also save to localStorage as fallback
-        if (backgroundMode) localStorage.setItem("backgroundMode", backgroundMode);
-        if (customBgColor) localStorage.setItem("customBgColor", customBgColor);
-        else localStorage.removeItem("customBgColor");
-        if (backgroundImage) localStorage.setItem("backgroundImage", backgroundImage);
-        else localStorage.removeItem("backgroundImage");
-      } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || "Failed to save settings");
-      }
-    } catch (error) {
-      console.error("Save error:", error);
-      toast.error("Failed to save background settings");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [session?.user?.id, backgroundMode, customBgColor, backgroundImage]);
+    toast.success("Background settings saved locally");
+    setIsSaving(false);
+  }, [backgroundMode, customBgColor, backgroundImage]);
 
   const value: BackgroundContextType = {
     theme,
