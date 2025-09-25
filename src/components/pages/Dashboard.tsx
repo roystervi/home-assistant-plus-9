@@ -16,7 +16,6 @@ import { useThermostat } from "@/contexts/ThermostatContext";
 import { ThermostatCard } from "@/components/ui/thermostat-card";
 import { AlarmKeypad } from "@/components/ui/alarm-keypad";
 import { toast } from "sonner";
-import { Toaster } from "@/components/ui/sonner";
 import { 
   Zap, 
   Calendar, 
@@ -97,11 +96,6 @@ const CRYPTO_ENTITIES = [
 ];
 
 export default function Dashboard() {
-  const [loading, setLoading] = useState(true);
-  const { entities, isConnected, retryConnection, callService } = useHomeAssistant();
-  const { getThermostat, updateTargetTemp, thermostats, isLoading: thermostatLoading, error: thermostatError } = useThermostat();
-  
-  // REAL HOME ASSISTANT ALARM STATE - REMOVED AlarmContext
   const [pinCode, setPinCode] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isAlarmLoading, setIsAlarmLoading] = useState(false);
@@ -329,7 +323,10 @@ export default function Dashboard() {
     }
   }, [alarmEntity]);
 
+  const [cryptoLoading, setCryptoLoading] = useState(true);
+
   const loadCryptoData = useCallback(async () => {
+    setCryptoLoading(true);
     if (!isConnected) {
       await retryConnection();
       return;
@@ -382,6 +379,8 @@ export default function Dashboard() {
         color: crypto.color
       }));
       setCryptoAssets(defaultCrypto);
+    } finally {
+      setCryptoLoading(false);
     }
   }, [isConnected, retryConnection, getEntity]);
 
@@ -410,21 +409,15 @@ export default function Dashboard() {
   }, [errorMessage]);
 
   useEffect(() => {
-    // Initial data loading
-    const timer = setTimeout(async () => {
-      await loadCryptoData();
-      setLoading(false);
-    }, 1000);
-
-    return () => clearTimeout(timer);
+    loadCryptoData();
   }, [loadCryptoData]);
 
   useEffect(() => {
-    if (!loading) {
+    if (cryptoAssets.length > 0) {
       const interval = setInterval(loadCryptoData, 30000);
       return () => clearInterval(interval);
     }
-  }, [loading, loadCryptoData]);
+  }, [cryptoAssets.length, loadCryptoData]);
 
   const getWeatherIcon = () => {
     switch (weather.icon) {
@@ -465,23 +458,6 @@ export default function Dashboard() {
       return `$${price.toFixed(2)}`; // Standard decimals
     }
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-muted rounded w-1/4"></div>
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-48 bg-muted rounded-lg"></div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -637,7 +613,25 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3 max-h-64 overflow-y-auto">
-                {cryptoAssets.length > 0 ? (
+                {cryptoLoading ? (
+                  <div className="space-y-3">
+                    {[...Array(8)].map((_, i) => (
+                      <div key={i} className="flex items-center justify-between p-2">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-3 h-3 bg-muted rounded-full animate-pulse" />
+                          <div className="space-y-1">
+                            <div className="h-4 bg-muted rounded w-20 animate-pulse" />
+                            <div className="h-3 bg-muted rounded w-16 animate-pulse" />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="h-4 bg-muted rounded w-16 animate-pulse ml-auto" />
+                          <div className="h-3 bg-muted rounded w-12 animate-pulse ml-auto" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : cryptoAssets.length > 0 ? (
                   cryptoAssets.map((asset, index) => (
                     <div key={`${asset.entityId}-${index}`} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors">
                       <div className="flex items-center space-x-3">
@@ -666,7 +660,7 @@ export default function Dashboard() {
                   <div className="text-center py-4">
                     <Coins className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                     <p className="text-sm text-muted-foreground">
-                      {isConnected ? "Loading crypto data..." : "Connect to Home Assistant to view crypto data"}
+                      {isConnected ? "No crypto data available" : "Connect to Home Assistant to view crypto data"}
                     </p>
                   </div>
                 )}
