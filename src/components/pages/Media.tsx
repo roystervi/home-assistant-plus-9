@@ -853,7 +853,7 @@ export default function MediaPage() {
             <>
               {Object.entries(groupedMusic).map(([folder, files]) => (
                 <Card key={folder}>
-                  <Accordion type="single" collapsible className="w-full">
+                  <Accordion type="multiple" defaultValue={Object.keys(groupedMusic)} collapsible className="w-full">
                     <AccordionItem value={folder}>
                       <AccordionTrigger>{folder} ({files.length})</AccordionTrigger>
                       <AccordionContent>
@@ -908,7 +908,7 @@ export default function MediaPage() {
             <>
               {Object.entries(groupedVideos).map(([folder, files]) => (
                 <Card key={folder}>
-                  <Accordion type="single" collapsible className="w-full">
+                  <Accordion type="multiple" defaultValue={Object.keys(groupedVideos)} collapsible className="w-full">
                     <AccordionItem value={folder}>
                       <AccordionTrigger>{folder} ({files.length})</AccordionTrigger>
                       <AccordionContent>
