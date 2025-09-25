@@ -135,6 +135,21 @@ export const userBackgroundSettings = sqliteTable('user_background_settings', {
   updatedAt: text('updated_at').notNull(),
 });
 
+export const media = sqliteTable('media', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  type: text('type').notNull(), // 'audio' or 'video'
+  filePath: text('file_path').notNull(),
+  duration: integer('duration').notNull().default(0), // in seconds
+  artist: text('artist'),
+  album: text('album'),
+  genre: text('genre'),
+  year: integer('year'),
+  folder: text('folder'),
+  userId: text('user_id').notNull().references(() => user.id),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
 
 // Auth tables for better-auth
 export const user = sqliteTable("user", {

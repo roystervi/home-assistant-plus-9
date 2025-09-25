@@ -1,0 +1,127 @@
+import { db } from '@/db';
+import { media } from '@/db/schema';
+
+async function main() {
+    const sampleMedia = [
+        {
+            name: 'Bugle Boy',
+            type: 'audio',
+            filePath: 'uploads/audio/user_test_123/bugle-boy.mp3',
+            duration: 155,
+            artist: 'Harry Nilsson',
+            album: 'Son of Schmilsson',
+            genre: 'Rock',
+            year: 1972,
+            folder: 'Rock Classics',
+            userId: 'user_test_123',
+            createdAt: new Date('2024-01-10').toISOString(),
+            updatedAt: new Date('2024-01-10').toISOString(),
+        },
+        {
+            name: 'Black Water',
+            type: 'audio',
+            filePath: 'uploads/audio/user_test_123/black-water.mp3',
+            duration: 212,
+            artist: 'The Doobie Brothers',
+            album: 'What Were Once Vices Are Now Habits',
+            genre: 'Rock',
+            year: 1974,
+            folder: 'Rock Classics',
+            userId: 'user_test_123',
+            createdAt: new Date('2024-01-11').toISOString(),
+            updatedAt: new Date('2024-01-11').toISOString(),
+        },
+        {
+            name: 'East St Louis Toodle-Oo',
+            type: 'audio',
+            filePath: 'uploads/audio/user_test_123/east-st-louis-toodle-oo.mp3',
+            duration: 198,
+            artist: 'Duke Ellington',
+            album: 'Ellington Uptown',
+            genre: 'Jazz',
+            year: 1952,
+            folder: 'Jazz Collection',
+            userId: 'user_test_123',
+            createdAt: new Date('2024-01-12').toISOString(),
+            updatedAt: new Date('2024-01-12').toISOString(),
+        },
+        {
+            name: 'East St Louis Toodle-Oo (raw)',
+            type: 'audio',
+            filePath: 'uploads/audio/user_test_123/east-st-louis-toodle-oo-raw.mp3',
+            duration: 198,
+            artist: 'Duke Ellington',
+            album: 'Ellington Uptown',
+            genre: 'Jazz',
+            year: 1952,
+            folder: 'Jazz Collection',
+            userId: 'user_test_123',
+            createdAt: new Date('2024-01-13').toISOString(),
+            updatedAt: new Date('2024-01-13').toISOString(),
+        },
+        {
+            name: 'Red Baron',
+            type: 'audio',
+            filePath: 'uploads/audio/user_test_123/red-baron.mp3',
+            duration: 245,
+            artist: 'Cobweb',
+            album: 'Mechanical',
+            genre: 'Alternative Rock',
+            year: 1995,
+            folder: 'Alternative',
+            userId: 'user_test_123',
+            createdAt: new Date('2024-01-14').toISOString(),
+            updatedAt: new Date('2024-01-14').toISOString(),
+        },
+        {
+            name: 'Japanese Restaurant',
+            type: 'audio',
+            filePath: 'uploads/audio/user_test_123/japanese-restaurant.mp3',
+            duration: 187,
+            artist: 'AKMU',
+            album: 'Sailing',
+            genre: 'K-Pop',
+            year: 2019,
+            folder: 'K-Pop Collection',
+            userId: 'user_test_123',
+            createdAt: new Date('2024-01-15').toISOString(),
+            updatedAt: new Date('2024-01-15').toISOString(),
+        },
+        {
+            name: 'Real Men',
+            type: 'audio',
+            filePath: 'uploads/audio/user_test_123/real-men.mp3',
+            duration: 231,
+            artist: 'Joe Jackson',
+            album: 'Night and Day',
+            genre: 'New Wave',
+            year: 1982,
+            folder: 'Alternative',
+            userId: 'user_test_123',
+            createdAt: new Date('2024-01-16').toISOString(),
+            updatedAt: new Date('2024-01-16').toISOString(),
+        },
+        {
+            name: 'Gosan Funk (clean)',
+            type: 'audio',
+            filePath: 'uploads/audio/user_test_123/gosan-funk-clean.mp3',
+            duration: 189,
+            artist: 'The Red Chord',
+            album: 'Clients',
+            genre: 'Metalcore',
+            year: 2005,
+            folder: 'Metal Collection',
+            userId: 'user_test_123',
+            createdAt: new Date('2024-01-17').toISOString(),
+            updatedAt: new Date('2024-01-17').toISOString(),
+        }
+    ];
+
+    await db.insert(media).values(sampleMedia);
+    
+    console.log('✅ Media seeder completed successfully');
+}
+
+main().catch((error) => {
+    console.error('❌ Seeder failed:', error);
+});
