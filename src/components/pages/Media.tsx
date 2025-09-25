@@ -270,14 +270,7 @@ export default function MediaPage() {
 
   // File upload handling
   const handleFileUpload = useCallback(async (files: FileList, type: "music" | "video") => {
-    const maxSize = 5 * 1024 * 1024; // 5MB limit (base64 will be ~6.6MB)
-    
     for (const file of Array.from(files)) {
-      if (file.size > maxSize) {
-        toast.error(`${file.name} is too large. Maximum size is 5MB.`);
-        continue;
-      }
-      
       if (type === "music" && !file.type.startsWith('audio/')) {
         toast.error(`${file.name} is not a valid audio file.`);
         continue;
