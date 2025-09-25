@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -87,6 +88,8 @@ export default function Page() {
   // Move all weather state inside component
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherError, setWeatherError] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
   const [currentPage, setCurrentPage] = useState("dashboard");
   const [theme, setTheme] = useState<Theme>("auto");
   const [displayMode, setDisplayMode] = useState<DisplayMode>("desktop");
@@ -99,6 +102,18 @@ export default function Page() {
     { id: "3", text: "Energy usage 15% below average today", type: "info" },
   ]);
   const [serverTime, setServerTime] = useState<Date>(new Date());
+
+  // Sync currentPage with pathname
+  useEffect(() => {
+    const id = pathname === '/' ? 'dashboard' : pathname.slice(1);
+    if (navigation.some(nav => nav.id === id) || id === 'dashboard') {
+      setCurrentPage(id);
+    } else {
+      // If invalid path, navigate to dashboard
+      router.replace('/');
+      setCurrentPage('dashboard');
+    }
+  }, [pathname, router]);
 
   // Move fetchWeather inside component
   const fetchServerTime = useCallback(async () => {
@@ -393,6 +408,11 @@ export default function Page() {
   const layout = getLayoutClasses();
   const CurrentPageComponent = navigation.find(nav => nav.id === currentPage)?.component || Dashboard;
 
+  const handleNavClick = (id: string) => {
+    const route = id === 'dashboard' ? '/' : `/${id}`;
+    router.push(route);
+  };
+
   return (
     <div className={`min-h-screen bg-background text-foreground transition-colors display-${displayMode}`}>
       {/* Fixed Header */}
@@ -505,7 +525,7 @@ export default function Page() {
                         ? 'justify-center px-0' 
                         : 'justify-start gap-3'
                     }`}
-                    onClick={() => setCurrentPage(item.id)}
+                    onClick={() => handleNavClick(item.id)}
                     title={(isNavCollapsed || displayMode === "phone") ? item.name : undefined}
                   >
                     <Icon className={`flex-shrink-0 ${displayMode === "tv" ? "h-6 w-6" : "h-5 w-5"}`} />
