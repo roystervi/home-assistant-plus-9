@@ -4,12 +4,12 @@ import './globals.css'
 import { Toaster } from '@/components/ui/sonner'
 import { HomeAssistantProvider } from '@/contexts/HomeAssistantContext'
 import { ThermostatProvider } from '@/contexts/ThermostatContext'
-import { NextThemesProvider } from "next-themes"
-import { BackgroundProvider } from "@/components/theme-provider"
+import { Providers } from '@/components/providers'
 
-import VisualEditsMessenger from "../visual-edits/VisualEditsMessenger";
-import ErrorReporter from "@/components/ErrorReporter";
-import Script from "next/script";
+import VisualEditsMessenger from "@/visual-edits/VisualEditsMessenger"
+import ErrorReporter from "@/components/ErrorReporter"
+import Script from "next/script"
+
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
@@ -23,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ErrorReporter />
         <Script
@@ -36,17 +36,14 @@ export default function RootLayout({
           data-debug="true"
           data-custom-data='{"appName": "YourApp", "version": "1.0.0", "greeting": "hi"}'
         />
-        <NextThemesProvider attribute="class" defaultTheme="system" enableSystem>
-          <BackgroundProvider>
-            <HomeAssistantProvider>
-              <ThermostatProvider>
-                {children}
-              </ThermostatProvider>
-            </HomeAssistantProvider>
-          </BackgroundProvider>
-        </NextThemesProvider>
+        <Providers>
+          <HomeAssistantProvider>
+            <ThermostatProvider>
+              {children}
+            </ThermostatProvider>
+          </HomeAssistantProvider>
+        </Providers>
         <Toaster />
-      
         <VisualEditsMessenger />
       </body>
     </html>
