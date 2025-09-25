@@ -8,17 +8,15 @@ interface ProvidersProps {
   children: ReactNode
 }
 
-export function Providers({ children }: ProvidersProps) {
+export function Providers({ children }: { children: ReactNode }) {
   return (
-    <ThemeProvider 
-      attribute="class" 
-      defaultTheme="system" 
-      enableSystem
-      disableTransitionOnChange
-    >
+    <>
       <BackgroundProvider>
-        {children}
+        <ThemeProvider>
+          <ModeToggle />
+          {children}
+        </ThemeProvider>
       </BackgroundProvider>
-    </ThemeProvider>
+    </>
   )
 }

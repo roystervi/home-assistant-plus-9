@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react"
 import { toast } from "sonner"
-import { authClient } from "@/lib/auth-client"
+import { useSession } from "@/lib/auth-client"
 
 interface BackgroundContextType {
   customBgColor: string | null;
@@ -24,7 +24,7 @@ interface BackgroundContextType {
 const BackgroundContext = createContext<BackgroundContextType | undefined>(undefined);
 
 export function BackgroundProvider({ children }: { children: ReactNode }) {
-  const { data: session } = authClient.useSession();
+  const { data: session } = useSession();
 
   // Theme state
   const [theme, setThemeState] = useState<"light" | "dark" | "system">("system");

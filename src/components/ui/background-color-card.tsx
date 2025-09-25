@@ -4,8 +4,8 @@ import React, { useState, useEffect, useCallback } from "react"
 import { CheckCircle, RotateCw, Palette, Image as ImageIcon, Upload, Link, Settings } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { authClient } from "@/lib/auth-client"
 import { useTheme } from "@/components/theme-provider"
+import { useSession } from "@/lib/auth-client"
 
 const backgroundOptions = [
   { id: "default", name: "Default", description: "Theme-based colors", icon: Settings },
@@ -35,7 +35,7 @@ export function BackgroundColorCard() {
     isSaving
   } = useTheme()
 
-  const { data: session } = authClient.useSession();
+  const { data: session } = useSession();
 
   const [imageMode, setImageMode] = useState<"upload" | "url">("upload")
   
@@ -333,7 +333,7 @@ export function BackgroundColorCard() {
                   <img
                     src={filePreview}
                     alt="Background preview"
-                    className="w-full h-full object-cover"
+                    className="w-full h-32 object-cover"
                   />
                   <div className="absolute inset-0 bg-black/20" />
                 </div>
