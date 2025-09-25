@@ -481,48 +481,39 @@ export default function Dashboard() {
                 onTargetTempChange={handleThermostatTempChange}
                 compact={true}
               />
+            ) : thermostatLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center text-muted-foreground">
+                  <Thermometer className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <div className="text-lg font-medium mb-2">Loading Thermostat...</div>
+                  <div className="text-sm">Connecting to climate.bobby entity...</div>
+                </div>
+              </div>
+            ) : thermostatError ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center text-muted-foreground">
+                  <Thermometer className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <div className="text-lg font-medium mb-2">Thermostat Error</div>
+                  <div className="text-sm text-red-500 mb-2">{thermostatError}</div>
+                  <div className="text-sm">Check entity configuration</div>
+                </div>
+              </div>
+            ) : !isConnected ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center text-muted-foreground">
+                  <Thermometer className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <div className="text-lg font-medium mb-2">Home Assistant Disconnected</div>
+                  <div className="text-sm">Connect to Home Assistant to view thermostat</div>
+                </div>
+              </div>
             ) : (
-              {isLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center text-muted-foreground">
-                    <Thermometer className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <div className="text-lg font-medium mb-2">
-                      {isLoading ? "Loading Thermostat..." : 
-                       error ? "Thermostat Error" : 
-                       !isConnected ? "Home Assistant Disconnected" : 
-                       "No Thermostat Found"}
-                    </div>
-                    {error && (
-                      <div className="text-sm text-red-500 mb-2">{error}</div>
-                    )}
-                    <div className="text-sm">
-                      {!isConnected ? "Connect to Home Assistant to view thermostat" :
-                       error ? "Check entity configuration" :
-                       "Looking for climate.bobby entity..."}
-                    </div>
-                  </div>
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center text-muted-foreground">
+                  <Thermometer className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <div className="text-lg font-medium mb-2">No Thermostat Found</div>
+                  <div className="text-sm">Looking for climate.bobby entity...</div>
                 </div>
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center text-muted-foreground">
-                    <Thermometer className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <div className="text-lg font-medium mb-2">
-                      {thermostatLoading ? "Loading Thermostat..." : 
-                       thermostatError ? "Thermostat Error" : 
-                       !isConnected ? "Home Assistant Disconnected" : 
-                       "No Thermostat Found"}
-                    </div>
-                    {thermostatError && (
-                      <div className="text-sm text-red-500 mb-2">{thermostatError}</div>
-                    )}
-                    <div className="text-sm">
-                      {!isConnected ? "Connect to Home Assistant to view thermostat" :
-                       thermostatError ? "Check entity configuration" :
-                       "Looking for climate.bobby entity..."}
-                    </div>
-                  </div>
-                </div>
-              )}
+              </div>
             )}
           </Card>
         </div>
