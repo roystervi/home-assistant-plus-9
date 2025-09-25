@@ -113,7 +113,7 @@ export default function MediaPage() {
   
   // Refs
   const audioRef = useRef<HTMLAudioElement>(null);
-  // const videoRef = useRef<HTMLVideoElement>(null); // Now used for visible video only
+  const videoRef = useRef<HTMLVideoElement>(null); // Now used for visible video only
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRef = useRef<HTMLMediaElement>(null); // Unified ref for audio/video
 
