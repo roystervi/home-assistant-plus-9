@@ -39,7 +39,8 @@ import {
   Save,
   FileEdit,
   Activity,
-  RefreshCw
+  RefreshCw,
+  Key
 } from "lucide-react";
 import { DisplayModeCard } from "@/components/ui/display-mode-card";
 
@@ -106,6 +107,23 @@ interface WeatherLocation {
   locationKey?: string;  // For AccuWeather
 }
 
+// Add Google OAuth state
+interface GoogleOAuthState {
+  clientId: string;
+  clientSecret: string;
+}
+
+// Add OpenAI key state
+interface OpenAIKeyState {
+  apiKey: string;
+}
+
+// Add weather API key state
+interface WeatherApiKeyState {
+  openWeatherKey: string;
+  weatherApiComKey: string;
+}
+
 export default function Settings() {
   // Home Assistant Connection State (Persistent)
   const [haUrl, setHaUrl] = useState(() => haConnectionSettings.getSetting("url"));
@@ -168,6 +186,17 @@ export default function Settings() {
       ]
     };
   });
+
+  // Add Google OAuth state
+  const [googleClientId, setGoogleClientId] = useState(() => localStorage.getItem('GOOGLE_CLIENT_ID') || '');
+  const [googleClientSecret, setGoogleClientSecret] = useState(() => localStorage.getItem('GOOGLE_CLIENT_SECRET') || '');
+  
+  // Add OpenAI key state
+  const [openaiApiKey, setOpenaiApiKey] = useState(() => localStorage.getItem('OPENAI_API_KEY') || '');
+  
+  // Add weather API key state
+  const [openWeatherKey, setOpenWeatherKey] = useState(() => localStorage.getItem('OPENWEATHER_API_KEY') || '');
+  const [weatherApiComKey, setWeatherApiComKey] = useState(() => localStorage.getItem('WEATHERAPI_COM_KEY') || '');
 
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     ha: haUrl && haToken ? "connected" : "disconnected",
@@ -993,6 +1022,40 @@ export default function Settings() {
     toast.success("Billing rates reset to defaults");
   };
 
+  // Test Google OAuth
+  const testGoogleOAuth = async () => {
+    if (!googleClientId || !googleClientSecret) {
+      toast.error("Please enter both Google Client ID and Client Secret");
+      return;
+    }
+
+    try {
+      const response = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id: googleClientId,
+          client_secret: googleClientSecret,
+          grant_type: 'client_credentials',
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success("Google OAuth test successful! Access token retrieved.");
+        // Store token in localStorage for future use
+        localStorage.setItem('GOOGLE_ACCESS_TOKEN', data.access_token);
+      } else {
+        const errorData = await response.json();
+        toast.error(`Google OAuth test failed: ${errorData.error_description || errorData.error}`);
+      }
+    } catch (error) {
+      toast.error(`Google OAuth test failed: ${error.message}`);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Settings Navigation Bar */}
@@ -1036,13 +1099,14 @@ export default function Settings() {
       </Card>
 
       <Tabs defaultValue="connections" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="connections">Home Assistant</TabsTrigger>
           <TabsTrigger value="weather">Weather API</TabsTrigger>
           <TabsTrigger value="energy">Energy API</TabsTrigger>
           <TabsTrigger value="location">Zip Code</TabsTrigger>
           <TabsTrigger value="services">Local Services</TabsTrigger>
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
+          <TabsTrigger value="api-keys">API Keys</TabsTrigger>
           <TabsTrigger value="backup">Data & Backup</TabsTrigger>
         </TabsList>
 
@@ -2152,6 +2216,167 @@ export default function Settings() {
               }}>
                 <h3 className="font-semibold mb-2">Preview</h3>
                 <p>This is how your text will look with the current settings.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* API Keys & Integrations */}
+        <TabsContent value="api-keys" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Key className="h-5 w-5" />
+                    API Keys & Integrations
+                  </CardTitle>
+                  <CardDescription>
+                    Enter API keys for third-party services like Google Calendar, OpenAI, etc. These can be shared and configured by multiple users.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Google OAuth for Calendar */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">Google Calendar Integration</h3>
+                    <p className="text-sm text-muted-foreground">Enter your Google OAuth credentials to enable calendar sync.</p>
+                  </div>
+                  <Badge variant="outline">OAuth 2.0</Badge>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="google-client-id">Google Client ID</Label>
+                    <Input
+                      id="google-client-id"
+                      type="text"
+                      placeholder="123456789-abcde.apps.googleusercontent.com"
+                      value={googleClientId}
+                      onChange={(e) => setGoogleClientId(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Get from Google Cloud Console > APIs & Services > Credentials
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="google-client-secret">Google Client Secret</Label>
+                    <Input
+                      id="google-client-secret"
+                      type="password"
+                      placeholder="GOCSPX-xyz123"
+                      value={googleClientSecret}
+                      onChange={(e) => setGoogleClientSecret(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Keep this secure. Required for OAuth token exchange.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={testGoogleOAuth}
+                    disabled={!googleClientId || !googleClientSecret}
+                    className="flex-1"
+                  >
+                    Test Google OAuth
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      localStorage.setItem('GOOGLE_CLIENT_ID', googleClientId);
+                      localStorage.setItem('GOOGLE_CLIENT_SECRET', googleClientSecret);
+                      toast.success("Google API keys saved");
+                    }}
+                    className="flex-1"
+                  >
+                    Save Keys
+                  </Button>
+                </div>
+              </div>
+
+              {/* Additional API Keys Section */}
+              <Separator />
+              
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Other API Keys</h3>
+                
+                {/* OpenAI Key for Assistant */}
+                <div className="space-y-2">
+                  <Label htmlFor="openai-api-key">OpenAI API Key (Optional)</Label>
+                  <Input
+                    id="openai-api-key"
+                    type="password"
+                    placeholder="sk-..."
+                    value={openaiApiKey}
+                    onChange={(e) => setOpenaiApiKey(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    For AI Assistant features. Enter your OpenAI API key here.
+                  </p>
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      localStorage.setItem('OPENAI_API_KEY', openaiApiKey);
+                      toast.success("OpenAI key saved");
+                    }}
+                  >
+                    Save OpenAI Key
+                  </Button>
+                </div>
+
+                {/* Weather API Keys (if not in weather tab) */}
+                <div className="space-y-2">
+                  <Label>Weather API Keys (Alternative Entry)</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Input
+                        type="password"
+                        placeholder="OpenWeatherMap API Key"
+                        value={openWeatherKey}
+                        onChange={(e) => setOpenWeatherKey(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        type="password"
+                        placeholder="WeatherAPI.com Key"
+                        value={weatherApiComKey}
+                        onChange={(e) => setWeatherApiComKey(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">These will override settings in the Weather tab.</p>
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      localStorage.setItem('OPENWEATHER_API_KEY', openWeatherKey);
+                      localStorage.setItem('WEATHERAPI_COM_KEY', weatherApiComKey);
+                      toast.success("Weather keys saved");
+                    }}
+                  >
+                    Save Weather Keys
+                  </Button>
+                </div>
+              </div>
+
+              {/* Instructions for Sharing */}
+              <div className="p-4 bg-blue-50 rounded-lg border">
+                <h4 className="font-medium mb-2 text-blue-900">Sharing Instructions</h4>
+                <ul className="text-sm space-y-1 text-blue-800">
+                  <li>• Each user should enter their own API keys in this section</li>
+                  <li>• Keys are stored locally in your browser (localStorage)</li>
+                  <li>• No data is sent to the server - fully client-side</li>
+                  <li>• For Google Calendar, ensure your app has Calendar API enabled in Google Cloud Console</li>
+                  <li>• Add authorized redirect URIs: <code>http://localhost:3000/api/auth/callback/google</code></li>
+                </ul>
               </div>
             </CardContent>
           </Card>
