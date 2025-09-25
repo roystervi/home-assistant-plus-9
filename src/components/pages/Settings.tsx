@@ -619,7 +619,7 @@ export default function SettingsPage() {
         body: JSON.stringify({ 
           url: haUrl, 
           token: haToken, 
-          entities: ['update.home_assistant_core_update', 'sensor.last_boot', 'sensor.uptime', 'binary_sensor.home_assistant_started']  // Fixed: Use valid default status entities
+          entities: ['conversation.home_assistant'] 
         }),
       });
 
