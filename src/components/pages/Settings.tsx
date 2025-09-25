@@ -975,9 +975,24 @@ export default function SettingsPage() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {Object.keys(haStatusStates).length === 0 ? (
+                    {isLoadingStates ? (
+                      <div className='text-center py-8'>
+                        <RefreshCw className='h-6 w-6 animate-spin mx-auto mb-2' />
+                        <p>Loading HA status...</p>
+                      </div>
+                    ) : Object.keys(haStatusStates).length === 0 ? (
                       <div className='text-center py-4 text-muted-foreground'>
-                        <p>Click "Refresh Status" to load Home Assistant states</p>
+                        <p>No status entities found in your Home Assistant instance.</p>
+                        <p className='text-sm mt-2'>This might be because the default status sensors don't exist or aren't configured.</p>
+                        <Button 
+                          variant='outline' 
+                          size='sm' 
+                          onClick={fetchHaStatusStates}
+                          className='mt-3'
+                        >
+                          <RefreshCw className='h-4 w-4 mr-2' />
+                          Retry Load
+                        </Button>
                       </div>
                     ) : (
                       <div className='grid gap-3 md:grid-cols-2'>
