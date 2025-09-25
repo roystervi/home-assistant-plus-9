@@ -1,15 +1,15 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Monitor, Tablet, Smartphone, CheckCircle, Tv } from "lucide-react"
+import { Settings, Monitor, Tablet, Smartphone, CheckCircle } from "lucide-react"
 import { useState, useEffect } from "react"
 
 export function DisplayModeCard() {
   const [displayMode, setDisplayMode] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("displayMode") || "desktop"
+      return localStorage.getItem("display_mode") || "auto"
     }
-    return "desktop"
+    return "auto"
   })
 
   const [currentSize, setCurrentSize] = useState("Desktop")
@@ -18,9 +18,8 @@ export function DisplayModeCard() {
   useEffect(() => {
     const updateSize = () => {
       const w = window.innerWidth
-      let size = "Phone"
+      let size = "Mobile"
       if (w >= 1024) size = "Desktop"
-      else if (w >= 768) size = "Tablet"
       else if (w >= 640) size = "Tablet"
       setCurrentSize(size)
       setDimensions({ width: w, height: window.innerHeight })
@@ -33,24 +32,25 @@ export function DisplayModeCard() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      localStorage.setItem("displayMode", displayMode)
-      document.documentElement.classList.remove('display-tv', 'display-desktop', 'display-tablet', 'display-phone')
-      document.documentElement.classList.add(`display-${displayMode}`)
+      localStorage.setItem("display_mode", displayMode)
+      // Apply display mode class to root
+      document.documentElement.classList.remove("display-tv", "display-desktop", "display-tablet", "display-phone")
+      document.documentElement.classList.add(`display-${displayMode === "auto" ? "desktop" : displayMode}`)
     }
   }, [displayMode])
 
   const modes = [
-    { key: "tv", name: "TV", desc: "Large screen layout", icon: Tv },
-    { key: "desktop", name: "Desktop", desc: "Standard desktop layout", icon: Monitor },
-    { key: "tablet", name: "Tablet", desc: "Tablet optimized layout", icon: Tablet },
-    { key: "phone", name: "Phone", desc: "Mobile layout", icon: Smartphone },
+    { key: "auto", name: "Auto", desc: "Adapts to screen size", icon: Settings },
+    { key: "desktop", name: "Desktop", desc: "Desktop layout", icon: Monitor },
+    { key: "tablet", name: "Tablet", desc: "Tablet layout", icon: Tablet },
+    { key: "mobile", name: "Mobile", desc: "Mobile layout", icon: Smartphone },
   ]
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Monitor className="h-5 w-5" />
+          <Settings className="h-4 w-4" />
           Display Mode
         </CardTitle>
       </CardHeader>
@@ -62,18 +62,23 @@ export function DisplayModeCard() {
           {modes.map(({ key, name, desc, icon: Icon }) => (
             <div
               key={key}
-              onClick={() => setDisplayMode(key)}
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("display_mode", key)
+                }
+                setDisplayMode(key)
+              }}
               className={`
-                relative p-3 rounded-md border cursor-pointer transition-colors
-                ${displayMode === key ? "border-primary bg-primary/5" : "border-border hover:bg-accent"}
+                relative p-3 rounded-lg border cursor-pointer transition-all duration-200
+                ${displayMode === key ? "border-primary bg-primary/10 ring-1 ring-primary/50" : "border-border hover:border-accent hover:bg-accent/5"}
               `}
             >
-              {displayMode === key && <CheckCircle size={16} className="absolute top-3 right-3 text-primary" />}
+              {displayMode === key && <CheckCircle className="absolute top-3 right-3 h-4 w-4 text-primary" />}
               <div className="flex items-start gap-3">
-                <Icon size={20} className="flex-shrink-0 mt-1" />
+                <Icon className="h-4 w-4 flex-shrink-0 mt-1" />
                 <div className="min-w-0 flex-1">
                   <span className="text-sm font-medium block">{name}</span>
-                  <p className="text-xs text-muted-foreground mt-1 break-words whitespace-normal">{desc}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{desc}</p>
                 </div>
               </div>
             </div>

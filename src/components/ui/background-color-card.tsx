@@ -1,13 +1,13 @@
 "use client"
 
 import React, { useState, useEffect, useCallback } from "react"
-import { CheckCircle, RotateCcw, Palette, Image as ImageIcon, Upload, Link } from "lucide-react"
+import { CheckCircle, RotateCw, Palette, Image as ImageIcon, Upload, Link, Settings } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 import { useTheme } from "@/components/theme-provider"
 
 const backgroundOptions = [
-  { id: "default", name: "Default", description: "Theme-based colors" },
+  { id: "default", name: "Default", description: "Theme-based colors", icon: Settings },
   { id: "dark-blue", name: "Dark Blue", color: "#1e40af", description: "Deep blue background" },
   { id: "dark-purple", name: "Dark Purple", color: "#7c3aed", description: "Rich purple background" },
   { id: "dark-green", name: "Dark Green", color: "#059669", description: "Forest green background" },
@@ -15,8 +15,8 @@ const backgroundOptions = [
   { id: "charcoal", name: "Charcoal", color: "#374151", description: "Dark gray background" },
   { id: "navy", name: "Navy", color: "#1e293b", description: "Dark navy background" },
   { id: "deep-teal", name: "Deep Teal", color: "#0f766e", description: "Deep teal background" },
-  { id: "color-custom", name: "Custom Color", description: "Choose your own color" },
-  { id: "image", name: "Custom Image", description: "Upload or link background image" }
+  { id: "color-custom", name: "Custom Color", description: "Choose your own color", icon: Palette },
+  { id: "image", name: "Custom Image", description: "Upload or link background image", icon: ImageIcon }
 ]
 
 type BackgroundMode = (typeof backgroundOptions)[number]["id"]
@@ -168,11 +168,12 @@ export function BackgroundColorCard() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Palette className="h-5 w-5" />
+          <Palette className="h-4 w-4" />
           Background Settings
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">Current: {currentDisplay}</p>
         {colorMessage && (
           <div className={`mb-4 p-3 rounded-lg border-l-4 ${
             colorMessage.includes("reset") || colorMessage.includes("default")
@@ -202,6 +203,8 @@ export function BackgroundColorCard() {
                     className="w-6 h-6 rounded-full border-2 border-border shadow-inner"
                     style={{ backgroundColor: option.color }}
                   />
+                ) : option.icon ? (
+                  <option.icon className="h-4 w-4 text-muted-foreground" />
                 ) : (
                   <div className="w-6 h-6 rounded-full border-2 border-border bg-gradient-to-br from-muted to-accent/50" />
                 )}
@@ -210,7 +213,7 @@ export function BackgroundColorCard() {
                     {option.name}
                   </span>
                   {backgroundMode === option.id && (
-                    <CheckCircle size={14} className="text-primary" />
+                    <CheckCircle size={16} className="text-primary" />
                   )}
                 </div>
               </div>
@@ -335,21 +338,13 @@ export function BackgroundColorCard() {
           </div>
         )}
 
-        <div className="flex justify-between items-center pt-4 border-t border-border">
-          <div>
-            <p className="text-sm text-foreground font-medium">Current Background</p>
-            <p className="text-xs text-muted-foreground">
-              {currentDisplay}
-            </p>
-          </div>
-          <button
-            onClick={resetAppearanceSettings}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-accent rounded-lg transition-colors"
-          >
-            <RotateCcw size={14} />
-            <span>Reset All</span>
-          </button>
-        </div>
+        <button
+          onClick={resetAppearanceSettings}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-accent rounded-lg transition-colors w-full justify-center"
+        >
+          <RotateCw size={14} />
+          <span>Reset All</span>
+        </button>
       </CardContent>
     </Card>
   )
