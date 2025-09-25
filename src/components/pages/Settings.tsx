@@ -163,7 +163,7 @@ export default function SettingsPage() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const res = await fetch("/api/settings");
+        const res = await fetch("/api/global-settings");
 
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
@@ -316,7 +316,7 @@ export default function SettingsPage() {
         },
       };
 
-      const res = await fetch("/api/settings", {
+      const res = await fetch("/api/global-settings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -257,3 +257,10 @@ export const googleCalendars = sqliteTable('google_calendars', {
   userIdIdx: index('google_calendars_user_id_idx').on(table.userId),
   expiresAtIdx: index('google_calendars_expires_at_idx').on(table.expiresAt),
 }));
+
+export const globalSettings = sqliteTable('global_settings', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  settings: text('settings', { mode: 'json' }).notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
