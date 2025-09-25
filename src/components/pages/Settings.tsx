@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
@@ -29,7 +28,6 @@ import {
   Zap,
   MapPin,
   Wifi,
-  WifiOff,
   CheckCircle,
   XCircle,
   AlertCircle,
@@ -58,7 +56,6 @@ interface ConnectionStatus {
   energy: "configured" | "not_configured" | "testing";
 }
 
-// Add interface for HA states
 interface HAStatusStates {
   "conversation.home_assistant": string;
   "update.home_assistant_core_update": string;
@@ -81,7 +78,6 @@ interface LocalServices {
   dbSize: string;
 }
 
-// Add billing rate structure interface
 interface BillingRateStructure {
   tiers: Array<{
     min: number;
@@ -94,7 +90,7 @@ interface BillingRateStructure {
   }>;
   taxes: Array<{
     name: string;
-    rate: number; // percentage
+    rate: number;
   }>;
 }
 
@@ -103,34 +99,29 @@ interface WeatherLocation {
   lon: number;
   city: string;
   country: string;
-  zip?: string;  // For ZIP code lookup
-  locationKey?: string;  // For AccuWeather
+  zip?: string;
+  locationKey?: string;
 }
 
-// Add Google OAuth state
 interface GoogleOAuthState {
   clientId: string;
   clientSecret: string;
 }
 
-// Add OpenAI key state
 interface OpenAIKeyState {
   apiKey: string;
 }
 
-// Add weather API key state
 interface WeatherApiKeyState {
   openWeatherKey: string;
   weatherApiComKey: string;
 }
 
 export default function SettingsPage() {
-  // Home Assistant Connection State (Persistent)
   const [haUrl, setHaUrl] = useState(() => haConnectionSettings.getSetting("url"));
   const [haToken, setHaToken] = useState(() => haConnectionSettings.getSetting("token"));
   const [haTimeout, setHaTimeout] = useState(() => haConnectionSettings.getSetting("connectionTimeout"));
 
-  // Weather API State (Persistent)
   const [weatherProvider, setWeatherProvider] = useState(() => weatherApiSettings.getSetting("provider"));
   const [weatherApiKey, setWeatherApiKey] = useState(() => weatherApiSettings.getSetting("apiKey"));
   const [weatherLocation, setWeatherLocation] = useState(() => {
@@ -139,7 +130,6 @@ export default function SettingsPage() {
   });
   const [weatherUnits, setWeatherUnits] = useState(() => weatherApiSettings.getSetting("units"));
 
-  // Energy API State (Persistent)
   const [energyProvider, setEnergyProvider] = useState(() => energyApiSettings.getSetting("provider"));
   const [costPerKwh, setCostPerKwh] = useState(() => energyApiSettings.getSetting("costPerKwh"));
   const [energyTimezone, setEnergyTimezone] = useState(() => energyApiSettings.getSetting("timezone"));
@@ -147,7 +137,6 @@ export default function SettingsPage() {
   const [senseEmail, setSenseEmail] = useState(() => energyApiSettings.getSetting("senseEmail"));
   const [sensePassword, setSensePassword] = useState(() => energyApiSettings.getSetting("sensePassword"));
 
-  // Appearance State (Persistent)
   const [appearance, setAppearance] = useState<AppearanceSettings>(() => ({
     theme: appearanceSettings.getSetting("theme"),
     backgroundColor: appearanceSettings.getSetting("backgroundColor"),
@@ -157,18 +146,15 @@ export default function SettingsPage() {
     displayMode: appearanceSettings.getSetting("displayMode"),
   }));
 
-  // Local Services State
   const [localServices, setLocalServices] = useState<LocalServices>({
     sqlitePath: "./data/homeassistant.db",
     dbSize: "12.5 MB"
   });
 
-  // Add billing rate structure state
   const [billingRates, setBillingRates] = useState<BillingRateStructure>(() => {
     const stored = energyApiSettings.getSetting("billingRates");
     if (stored) return stored;
     
-    // Default billing structure based on uploaded example
     return {
       tiers: [
         { min: 0, max: 1000, rate: 0.12 },
@@ -187,14 +173,11 @@ export default function SettingsPage() {
     };
   });
 
-  // Add Google OAuth state
   const [googleClientId, setGoogleClientId] = useState(() => localStorage.getItem('GOOGLE_CLIENT_ID') || '');
   const [googleClientSecret, setGoogleClientSecret] = useState(() => localStorage.getItem('GOOGLE_CLIENT_SECRET') || '');
-  
-  // Add OpenAI key state
+
   const [openaiApiKey, setOpenaiApiKey] = useState(() => localStorage.getItem('OPENAI_API_KEY') || '');
-  
-  // Add weather API key state
+
   const [openWeatherKey, setOpenWeatherKey] = useState(() => localStorage.getItem('OPENWEATHER_API_KEY') || '');
   const [weatherApiComKey, setWeatherApiComKey] = useState(() => localStorage.getItem('WEATHERAPI_COM_KEY') || '');
 
@@ -205,10 +188,8 @@ export default function SettingsPage() {
     energy: energyApiSettings.getSetting("isConfigured") ? "configured" : "not_configured",
   });
 
-  // Add useEffect to auto-test HA connection on mount if credentials are set
   useEffect(() => {
     if (haUrl && haToken && !isHAConnected) {
-      // Auto-test if credentials exist but status is not confirmed
       const timer = setTimeout(() => testHaConnection(), 1000);
       return () => clearTimeout(timer);
     }
@@ -218,7 +199,6 @@ export default function SettingsPage() {
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [detailedLogs, setDetailedLogs] = useState(false);
 
-  // Add HA status states
   const [haStatusStates, setHaStatusStates] = useState<Partial<HAStatusStates>>({});
   const [isLoadingStates, setIsLoadingStates] = useState(false);
 
@@ -264,7 +244,6 @@ export default function SettingsPage() {
     }
   ];
 
-  // Persist Home Assistant settings
   useEffect(() => {
     haConnectionSettings.setSetting("url", haUrl);
   }, [haUrl]);
@@ -277,7 +256,6 @@ export default function SettingsPage() {
     haConnectionSettings.setSetting("connectionTimeout", haTimeout);
   }, [haTimeout]);
 
-  // Persist Weather API settings
   useEffect(() => {
     weatherApiSettings.setSetting("provider", weatherProvider);
   }, [weatherProvider]);
@@ -294,7 +272,6 @@ export default function SettingsPage() {
     weatherApiSettings.setSetting("units", weatherUnits);
   }, [weatherUnits]);
 
-  // Persist Energy API settings
   useEffect(() => {
     energyApiSettings.setSetting("provider", energyProvider);
   }, [energyProvider]);
@@ -319,17 +296,14 @@ export default function SettingsPage() {
     energyApiSettings.setSetting("sensePassword", sensePassword);
   }, [sensePassword]);
 
-  // Persist Appearance settings
   useEffect(() => {
     appearanceSettings.set(appearance);
   }, [appearance]);
 
-  // Persist billing rates
   useEffect(() => {
     energyApiSettings.setSetting("billingRates", billingRates);
   }, [billingRates]);
 
-  // Add function to fetch HA status states
   const fetchHAStatusStates = async () => {
     if (!haUrl || !haToken || connectionStatus.ha !== "connected") {
       toast.error("Home Assistant must be connected first");
@@ -428,7 +402,6 @@ export default function SettingsPage() {
     }
   };
 
-  // Test Weather API
   const testWeatherApi = async () => {
     if (weatherProvider !== "ha_integration" && !weatherApiKey) {
       toast.error("Please enter weather API key");
@@ -460,7 +433,6 @@ export default function SettingsPage() {
           break;
         case "accuweather":
           if (!weatherLocation.locationKey) {
-            // First get location key if not set
             const searchResponse = await fetch(
               `https://dataservice.accuweather.com/locations/v1/geoposition/search?apikey=${weatherApiKey}&q=${weatherLocation.lat},${weatherLocation.lon}`
             );
@@ -476,7 +448,6 @@ export default function SettingsPage() {
               throw new Error("AccuWeather location not found");
             }
             
-            // Update location with key and persist
             const updatedLocation = { ...weatherLocation, locationKey };
             setWeatherLocation(updatedLocation);
             weatherApiSettings.setSetting("location", updatedLocation);
@@ -495,7 +466,6 @@ export default function SettingsPage() {
       if (response.ok) {
         const data = await response.json();
         
-        // Basic validation for each provider
         switch (weatherProvider) {
           case "openweathermap":
             if (!data.main || typeof data.main.temp !== 'number') {
@@ -523,7 +493,6 @@ export default function SettingsPage() {
         weatherApiSettings.setSetting("isConfigured", true);
         weatherApiSettings.setSetting("lastUpdate", new Date().toISOString());
         
-        // Show sample data in toast
         let sampleTemp = "";
         switch (weatherProvider) {
           case "openweathermap":
@@ -559,7 +528,6 @@ export default function SettingsPage() {
     }
   };
 
-  // Test Energy API
   const testEnergyApi = async () => {
     setConnectionStatus(prev => ({ ...prev, energy: "testing" }));
 
@@ -601,16 +569,13 @@ export default function SettingsPage() {
     }
   };
 
-  // Auto-detect location for weather
   const detectLocation = async () => {
     try {
-      // Check if geolocation is supported
       if (!navigator.geolocation) {
         toast.error("Geolocation not supported by this browser");
         return;
       }
 
-      // Check if we're in a secure context (HTTPS)
       if (!window.isSecureContext) {
         toast.error("Location detection requires HTTPS. Please enter coordinates manually or use HTTPS.", {
           description: "For local development, try using localhost instead of 127.0.0.1, or manually enter your coordinates.",
@@ -619,7 +584,6 @@ export default function SettingsPage() {
         return;
       }
 
-      // Show loading toast
       const loadingToast = toast.loading("Detecting your location...");
 
       navigator.geolocation.getCurrentPosition(
@@ -630,60 +594,54 @@ export default function SettingsPage() {
           let newLocation = { lat: latitude, lon: longitude, city: "", country: "", locationKey: "" };
           
           if (weatherApiKey && weatherProvider !== "ha_integration") {
-            try {
-              let city = "Unknown";
-              let country = "Unknown";
-              let locationKey = "";
-              
-              switch (weatherProvider) {
-                case "openweathermap":
-                  const owmResponse = await fetch(
-                    `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${weatherApiKey}`
-                  );
-                  
-                  if (owmResponse.ok) {
-                    const owmData = await owmResponse.json();
-                    if (owmData.length > 0) {
-                      city = owmData[0].name;
-                      country = owmData[0].country;
-                    }
+            let city = "Unknown";
+            let country = "Unknown";
+            let locationKey = "";
+            
+            switch (weatherProvider) {
+              case "openweathermap":
+                const owmResponse = await fetch(
+                  `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${weatherApiKey}`
+                );
+                
+                if (owmResponse.ok) {
+                  const owmData = await owmResponse.json();
+                  if (owmData.length > 0) {
+                    city = owmData[0].name;
+                    country = owmData[0].country;
                   }
-                  break;
-                  
-                case "weatherapi":
-                  // WeatherAPI reverse geocoding
-                  const wapResponse = await fetch(
-                    `https://api.weatherapi.com/v1/search.json?key=${weatherApiKey}&q=${latitude},${longitude}`
-                  );
-                  
-                  if (wapResponse.ok) {
-                    const wapData = await wapResponse.json();
-                    if (wapData.length > 0) {
-                      city = wapData[0].name;
-                      country = wapData[0].region || wapData[0].country;
-                    }
+                }
+                break;
+                
+              case "weatherapi":
+                const wapResponse = await fetch(
+                  `https://api.weatherapi.com/v1/search.json?key=${weatherApiKey}&q=${latitude},${longitude}`
+                );
+                
+                if (wapResponse.ok) {
+                  const wapData = await wapResponse.json();
+                  if (wapData.length > 0) {
+                    city = wapData[0].name;
+                    country = wapData[0].region || wapData[0].country;
                   }
-                  break;
-                  
-                case "accuweather":
-                  // AccuWeather geoposition search
-                  const accuResponse = await fetch(
-                    `https://dataservice.accuweather.com/locations/v1/geoposition/search?apikey=${weatherApiKey}&q=${latitude},${longitude}`
-                  );
-                  
-                  if (accuResponse.ok) {
-                    const accuData = await accuResponse.json();
-                    city = accuData.localizedName || accuData.parent?.localizedName || "Unknown";
-                    country = accuData.country?.localizedName || "Unknown";
-                    locationKey = accuData.key;
-                  }
-                  break;
-              }
-              
-              newLocation = { ...newLocation, city, country, locationKey };
-            } catch (error) {
-              console.warn("Reverse geocoding failed for", weatherProvider, ":", error);
+                }
+                break;
+                
+              case "accuweather":
+                const accuResponse = await fetch(
+                  `https://dataservice.accuweather.com/locations/v1/geoposition/search?apikey=${weatherApiKey}&q=${latitude},${longitude}`
+                );
+                
+                if (accuResponse.ok) {
+                  const accuData = await accuResponse.json();
+                  city = accuData.localizedName || accuData.parent?.localizedName || "Unknown";
+                  country = accuData.country?.localizedName || "Unknown";
+                  locationKey = accuData.key;
+                }
+                break;
             }
+            
+            newLocation = { ...newLocation, city, country, locationKey };
           }
           
           setWeatherLocation(newLocation);
@@ -693,7 +651,6 @@ export default function SettingsPage() {
             `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
           toast.success(`Location detected: ${locationText}`);
           
-          // Persist the location
           weatherApiSettings.setSetting("location", newLocation);
         },
         (error) => {
@@ -720,7 +677,7 @@ export default function SettingsPage() {
                 : "Location detection failed";
               errorDescription = error.message.includes("Only secure origins")
                 ? "For local development, use 'localhost' instead of '127.0.0.1' or enter coordinates manually."
-                : "Please enter your coordinates manually below.";
+                : "Please enter your coordinates manually below."; 
               break;
           }
           
@@ -732,7 +689,7 @@ export default function SettingsPage() {
         {
           enableHighAccuracy: true,
           timeout: 10000,
-          maximumAge: 300000 // 5 minutes
+          maximumAge: 300000
         }
       );
     } catch (error) {
@@ -788,6 +745,179 @@ export default function SettingsPage() {
     setAppearance(prev => ({ ...prev, textSize: newSize }));
     if (typeof document !== "undefined") {
       document.documentElement.style.setProperty('--base-text-size', `${newSize}px`);
+    }
+  };
+
+  const addRateTier = () => {
+    setBillingRates(prev => ({
+      ...prev,
+      tiers: [...prev.tiers, { min: 0, max: null, rate: 0.12 }]
+    }));
+  };
+
+  const updateRateTier = (index: number, field: 'min' | 'max' | 'rate', value: number | null) => {
+    setBillingRates(prev => ({
+      ...prev,
+      tiers: prev.tiers.map((tier, i) => 
+        i === index ? { ...tier, [field]: value } : tier
+      )
+    }));
+  };
+
+  const removeRateTier = (index: number) => {
+    setBillingRates(prev => ({
+      ...prev,
+      tiers: prev.tiers.filter((_, i) => i !== index)
+    }));
+  };
+
+  const addFixedCharge = () => {
+    setBillingRates(prev => ({
+      ...prev,
+      fixedCharges: [...prev.fixedCharges, { name: "New Charge", amount: 0 }]
+    }));
+  };
+
+  const updateFixedCharge = (index: number, field: 'name' | 'amount', value: string | number) => {
+    setBillingRates(prev => ({
+      ...prev,
+      fixedCharges: prev.fixedCharges.map((charge, i) => 
+        i === index ? { ...charge, [field]: value } : charge
+      )
+    }));
+  };
+
+  const removeFixedCharge = (index: number) => {
+    setBillingRates(prev => ({
+      ...prev,
+      fixedCharges: prev.fixedCharges.filter((_, i) => i !== index)
+    }));
+  };
+
+  const addTax = () => {
+    setBillingRates(prev => ({
+      ...prev,
+      taxes: [...prev.taxes, { name: "New Tax", rate: 0 }]
+    }));
+  };
+
+  const updateTax = (index: number, field: 'name' | 'rate', value: string | number) => {
+    setBillingRates(prev => ({
+      ...prev,
+      taxes: prev.taxes.map((tax, i) => 
+        i === index ? { ...tax, [field]: value } : tax
+      )
+    }));
+  };
+
+  const removeTax = (index: number) => {
+    setBillingRates(prev => ({
+      ...prev,
+      taxes: prev.taxes.filter((_, i) => i !== index)
+    }));
+  };
+
+  const saveBillingRates = () => {
+    energyApiSettings.setSetting("billingRates", billingRates);
+    toast.success("Billing rates saved successfully");
+  };
+
+  const resetBillingRates = () => {
+    setBillingRates({
+      tiers: [
+        { min: 0, max: 1000, rate: 0.12 },
+        { min: 1000, max: 2000, rate: 0.15 },
+        { min: 2000, max: null, rate: 0.18 }
+      ],
+      fixedCharges: [
+        { name: "Basic Service Charge", amount: 8.95 },
+        { name: "Distribution Charge", amount: 12.50 },
+        { name: "Transmission Charge", amount: 4.25 }
+      ],
+      taxes: [
+        { name: "State Tax", rate: 6.25 },
+        { name: "Municipal Tax", rate: 2.50 }
+      ]
+    });
+    toast.success("Billing rates reset to defaults");
+  };
+
+  const testGoogleOAuth = async () => {
+    if (!googleClientId || !googleClientSecret) {
+      toast.error("Please enter both Google Client ID and Client Secret");
+      return;
+    }
+
+    try {
+      const response = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id: googleClientId,
+          client_secret: googleClientSecret,
+          grant_type: 'client_credentials',
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success("Google OAuth test successful! Access token retrieved.");
+        localStorage.setItem('GOOGLE_ACCESS_TOKEN', data.access_token);
+      } else {
+        const errorData = await response.json();
+        toast.error(`Google OAuth test failed: ${errorData.error_description || errorData.error}`);
+      }
+    } catch (error) {
+      toast.error(`Google OAuth test failed: ${error.message}`);
+    }
+  };
+
+  const getConnectionIcon = (status: string) => {
+    switch (status) {
+      case "connected":
+      case "configured":
+      case "running":
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case "testing":
+      case "starting":
+      case "stopping":
+      case "connecting":
+        return <AlertCircle className="h-4 w-4 text-yellow-600 animate-pulse" />;
+      default:
+        return <XCircle className="h-4 w-4 text-red-600" />;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "connected":
+      case "running":
+        return "bg-green-500";
+      case "testing":
+      case "starting":
+      case "stopping":
+      case "connecting":
+        return "bg-yellow-500";
+      default:
+        return "bg-red-500";
+    }
+  };
+
+  const getStateStatusColor = (state: string) => {
+    switch (state) {
+      case "on":
+      case "idle":
+      case "no_update":
+        return "text-green-600";
+      case "unavailable":
+      case "error":
+        return "text-red-600";
+      case "updating":
+        return "text-yellow-600";
+      default:
+        return "text-muted-foreground";
     }
   };
 
@@ -887,186 +1017,8 @@ export default function SettingsPage() {
     toast.success("Settings reset to defaults");
   };
 
-  const getConnectionIcon = (status: string) => {
-    switch (status) {
-      case "connected":
-      case "configured":
-      case "running":
-        return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case "testing":
-      case "starting":
-      case "stopping":
-      case "connecting":
-        return <AlertCircle className="h-4 w-4 text-yellow-600 animate-pulse" />;
-      default:
-        return <XCircle className="h-4 w-4 text-red-600" />;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "connected":
-      case "running":
-        return "bg-green-500";
-      case "testing":
-      case "starting":
-      case "stopping":
-      case "connecting":
-        return "bg-yellow-500";
-      default:
-        return "bg-red-500";
-    }
-  };
-
-  // Add function to get state status color
-  const getStateStatusColor = (state: string) => {
-    switch (state) {
-      case "on":
-      case "idle":
-      case "no_update":
-        return "text-green-600";
-      case "unavailable":
-      case "error":
-        return "text-red-600";
-      case "updating":
-        return "text-yellow-600";
-      default:
-        return "text-muted-foreground";
-    }
-  };
-
-  // Billing rate management functions
-  const addRateTier = () => {
-    setBillingRates(prev => ({
-      ...prev,
-      tiers: [...prev.tiers, { min: 0, max: null, rate: 0.12 }]
-    }));
-  };
-
-  const updateRateTier = (index: number, field: 'min' | 'max' | 'rate', value: number | null) => {
-    setBillingRates(prev => ({
-      ...prev,
-      tiers: prev.tiers.map((tier, i) => 
-        i === index ? { ...tier, [field]: value } : tier
-      )
-    }));
-  };
-
-  const removeRateTier = (index: number) => {
-    setBillingRates(prev => ({
-      ...prev,
-      tiers: prev.tiers.filter((_, i) => i !== index)
-    }));
-  };
-
-  const addFixedCharge = () => {
-    setBillingRates(prev => ({
-      ...prev,
-      fixedCharges: [...prev.fixedCharges, { name: "New Charge", amount: 0 }]
-    }));
-  };
-
-  const updateFixedCharge = (index: number, field: 'name' | 'amount', value: string | number) => {
-    setBillingRates(prev => ({
-      ...prev,
-      fixedCharges: prev.fixedCharges.map((charge, i) => 
-        i === index ? { ...charge, [field]: value } : charge
-      )
-    }));
-  };
-
-  const removeFixedCharge = (index: number) => {
-    setBillingRates(prev => ({
-      ...prev,
-      fixedCharges: prev.fixedCharges.filter((_, i) => i !== index)
-    }));
-  };
-
-  const addTax = () => {
-    setBillingRates(prev => ({
-      ...prev,
-      taxes: [...prev.taxes, { name: "New Tax", rate: 0 }]
-    }));
-  };
-
-  const updateTax = (index: number, field: 'name' | 'rate', value: string | number) => {
-    setBillingRates(prev => ({
-      ...prev,
-      taxes: prev.taxes.map((tax, i) => 
-        i === index ? { ...tax, [field]: value } : tax
-      )
-    }));
-  };
-
-  const removeTax = (index: number) => {
-    setBillingRates(prev => ({
-      ...prev,
-      taxes: prev.taxes.filter((_, i) => i !== index)
-    }));
-  };
-
-  const saveBillingRates = () => {
-    energyApiSettings.setSetting("billingRates", billingRates);
-    toast.success("Billing rates saved successfully");
-  };
-
-  const resetBillingRates = () => {
-    setBillingRates({
-      tiers: [
-        { min: 0, max: 1000, rate: 0.12 },
-        { min: 1000, max: 2000, rate: 0.15 },
-        { min: 2000, max: null, rate: 0.18 }
-      ],
-      fixedCharges: [
-        { name: "Basic Service Charge", amount: 8.95 },
-        { name: "Distribution Charge", amount: 12.50 },
-        { name: "Transmission Charge", amount: 4.25 }
-      ],
-      taxes: [
-        { name: "State Tax", rate: 6.25 },
-        { name: "Municipal Tax", rate: 2.50 }
-      ]
-    });
-    toast.success("Billing rates reset to defaults");
-  };
-
-  // Test Google OAuth
-  const testGoogleOAuth = async () => {
-    if (!googleClientId || !googleClientSecret) {
-      toast.error("Please enter both Google Client ID and Client Secret");
-      return;
-    }
-
-    try {
-      const response = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: googleClientId,
-          client_secret: googleClientSecret,
-          grant_type: 'client_credentials',
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        toast.success("Google OAuth test successful! Access token retrieved.");
-        // Store token in localStorage for future use
-        localStorage.setItem('GOOGLE_ACCESS_TOKEN', data.access_token);
-      } else {
-        const errorData = await response.json();
-        toast.error(`Google OAuth test failed: ${errorData.error_description || errorData.error}`);
-      }
-    } catch (error) {
-      toast.error(`Google OAuth test failed: ${error.message}`);
-    }
-  };
-
   return (
     <div className="space-y-6">
-      {/* Settings Navigation Bar */}
       <Card className="bg-card border">
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
@@ -1088,7 +1040,6 @@ export default function SettingsPage() {
             </div>
           </div>
           
-          {/* Status Overview */}
           <div className="grid grid-cols-3 gap-4">
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${getStatusColor(connectionStatus.ha)}`} />
@@ -1118,227 +1069,222 @@ export default function SettingsPage() {
           <TabsTrigger value="backup">Data & Backup</TabsTrigger>
         </TabsList>
 
-        {/* Home Assistant Connection */}
         <TabsContent value="connections" className="space-y-6">
-          <>
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Home className="h-5 w-5" />
-                      Home Assistant Connection
-                    </CardTitle>
-                    <CardDescription>
-                      Connect to your Home Assistant instance for device control and automation
-                    </CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {getConnectionIcon(connectionStatus.ha)}
-                    <Badge variant={connectionStatus.ha === "connected" ? "default" : "secondary"}>
-                      {connectionStatus.ha}
-                    </Badge>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="ha-url">Home Assistant URL</Label>
-                    <Input
-                      id="ha-url"
-                      placeholder="http://homeassistant.local:8123"
-                      value={haUrl}
-                      onChange={(e) => setHaUrl(e.target.value)}
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="ha-timeout">Connection Timeout (ms)</Label>
-                    <Input
-                      id="ha-timeout"
-                      type="number"
-                      value={haTimeout}
-                      onChange={(e) => setHaTimeout(parseInt(e.target.value) || 5000)}
-                      min={1000}
-                      max={30000}
-                    />
-                  </div>
-                </div>
-                
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="ha-token">Long-lived Access Token</Label>
+                  <CardTitle className="flex items-center gap-2">
+                    <Home className="h-5 w-5" />
+                    Home Assistant Connection
+                  </CardTitle>
+                  <CardDescription>
+                    Connect to your Home Assistant instance for device control and automation
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  {getConnectionIcon(connectionStatus.ha)}
+                  <Badge variant={connectionStatus.ha === "connected" ? "default" : "secondary"}>
+                    {connectionStatus.ha}
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="ha-url">Home Assistant URL</Label>
                   <Input
-                    id="ha-token"
-                    type="password"
-                    placeholder="Enter your HA token"
-                    value={haToken}
-                    onChange={(e) => setHaToken(e.target.value)}
+                    id="ha-url"
+                    placeholder="http://homeassistant.local:8123"
+                    value={haUrl}
+                    onChange={(e) => setHaUrl(e.target.value)}
                   />
                 </div>
                 
+                <div>
+                  <Label htmlFor="ha-timeout">Connection Timeout (ms)</Label>
+                  <Input
+                    id="ha-timeout"
+                    type="number"
+                    value={haTimeout}
+                    onChange={(e) => setHaTimeout(parseInt(e.target.value) || 5000)}
+                    min={1000}
+                    max={30000}
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="ha-token">Long-lived Access Token</Label>
+                <Input
+                  id="ha-token"
+                  type="password"
+                  placeholder="Enter your HA token"
+                  value={haToken}
+                  onChange={(e) => setHaToken(e.target.value)}
+                />
+              </div>
+              
+              <Button 
+                onClick={testHaConnection}
+                disabled={connectionStatus.ha === "testing" || !haUrl || !haToken}
+                className="w-full"
+              >
+                {connectionStatus.ha === "testing" ? (
+                  <>
+                    <Wifi className="h-4 w-4 mr-2 animate-pulse" />
+                    Testing Connection...
+                  </>
+                ) : (
+                  <>
+                    <Wifi className="h-4 w-4 mr-2" />
+                    Test Connection
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="h-5 w-5" />
+                    Home Assistant Status
+                  </CardTitle>
+                  <CardDescription>
+                    Monitor key Home Assistant system states to verify connectivity
+                  </CardDescription>
+                </div>
                 <Button 
-                  onClick={testHaConnection}
-                  disabled={connectionStatus.ha === "testing" || !haUrl || !haToken}
-                  className="w-full"
+                  onClick={fetchHAStatusStates}
+                  disabled={isLoadingStates || connectionStatus.ha !== "connected"}
+                  size="sm"
+                  variant="outline"
                 >
-                  {connectionStatus.ha === "testing" ? (
+                  {isLoadingStates ? (
                     <>
-                      <Wifi className="h-4 w-4 mr-2 animate-pulse" />
-                      Testing Connection...
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Loading...
                     </>
                   ) : (
                     <>
-                      <Wifi className="h-4 w-4 mr-2" />
-                      Test Connection
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Refresh Status
                     </>
                   )}
                 </Button>
-              </CardContent>
-            </Card>
-
-            {/* Home Assistant Status Card */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Activity className="h-5 w-5" />
-                      Home Assistant Status
-                    </CardTitle>
-                    <CardDescription>
-                      Monitor key Home Assistant system states to verify connectivity
-                    </CardDescription>
-                  </div>
-                  <Button 
-                    onClick={fetchHAStatusStates}
-                    disabled={isLoadingStates || connectionStatus.ha !== "connected"}
-                    size="sm"
-                    variant="outline"
-                  >
-                    {isLoadingStates ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                        Loading...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Refresh Status
-                      </>
-                    )}
-                  </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {connectionStatus.ha !== "connected" ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+                  <p>Connect to Home Assistant first to view status</p>
                 </div>
-              </CardHeader>
-              <CardContent>
-                {connectionStatus.ha !== "connected" ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <AlertCircle className="h-8 w-8 mx-auto mb-2" />
-                    <p>Connect to Home Assistant first to view status</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {Object.keys(haStatusStates).length === 0 ? (
-                      <div className="text-center py-4 text-muted-foreground">
-                        <p>Click "Refresh Status" to load Home Assistant states</p>
+              ) : (
+                <div className="space-y-3">
+                  {Object.keys(haStatusStates).length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground">
+                      <p>Click "Refresh Status" to load Home Assistant states</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid gap-3">
+                        <div className="flex items-center justify-between p-3 rounded-lg border">
+                          <div>
+                            <p className="font-medium text-sm">Conversation</p>
+                            <p className="text-xs text-muted-foreground">conversation.home_assistant</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge 
+                              variant="outline" 
+                              className={getStateStatusColor(haStatusStates["conversation.home_assistant"] || "")}
+                            >
+                              {haStatusStates["conversation.home_assistant"] || "Unknown"}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between p-3 rounded-lg border">
+                          <div>
+                            <p className="font-medium text-sm">Core Update</p>
+                            <p className="text-xs text-muted-foreground">update.home_assistant_core_update</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge 
+                              variant="outline" 
+                              className={getStateStatusColor(haStatusStates["update.home_assistant_core_update"] || "")}
+                            >
+                              {haStatusStates["update.home_assistant_core_update"] || "Unknown"}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between p-3 rounded-lg border">
+                          <div>
+                            <p className="font-medium text-sm">Matter Hub Update</p>
+                            <p className="text-xs text-muted-foreground">update.home_assistant_matter_hub_update</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge 
+                              variant="outline" 
+                              className={getStateStatusColor(haStatusStates["update.home_assistant_matter_hub_update"] || "")}
+                            >
+                              {haStatusStates["update.home_assistant_matter_hub_update"] || "Unknown"}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between p-3 rounded-lg border">
+                          <div>
+                            <p className="font-medium text-sm">Operating System Update</p>
+                            <p className="text-xs text-muted-foreground">update.home_assistant_operating_system_update</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge 
+                              variant="outline" 
+                              className={getStateStatusColor(haStatusStates["update.home_assistant_operating_system_update"] || "")}
+                            >
+                              {haStatusStates["update.home_assistant_operating_system_update"] || "Unknown"}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between p-3 rounded-lg border">
+                          <div>
+                            <p className="font-medium text-sm">Supervisor Update</p>
+                            <p className="text-xs text-muted-foreground">update.home_assistant_supervisor_update</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge 
+                              variant="outline" 
+                              className={getStateStatusColor(haStatusStates["update.home_assistant_supervisor_update"] || "")}
+                            >
+                              {haStatusStates["update.home_assistant_supervisor_update"] || "Unknown"}
+                            </Badge>
+                          </div>
+                        </div>
                       </div>
-                    ) : (
-                      <>
-                        <div className="grid gap-3">
-                          <div className="flex items-center justify-between p-3 rounded-lg border">
-                            <div>
-                              <p className="font-medium text-sm">Conversation</p>
-                              <p className="text-xs text-muted-foreground">conversation.home_assistant</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge 
-                                variant="outline" 
-                                className={getStateStatusColor(haStatusStates["conversation.home_assistant"] || "")}
-                              >
-                                {haStatusStates["conversation.home_assistant"] || "Unknown"}
-                              </Badge>
-                            </div>
-                          </div>
 
-                          <div className="flex items-center justify-between p-3 rounded-lg border">
-                            <div>
-                              <p className="font-medium text-sm">Core Update</p>
-                              <p className="text-xs text-muted-foreground">update.home_assistant_core_update</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge 
-                                variant="outline" 
-                                className={getStateStatusColor(haStatusStates["update.home_assistant_core_update"] || "")}
-                              >
-                                {haStatusStates["update.home_assistant_core_update"] || "Unknown"}
-                              </Badge>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between p-3 rounded-lg border">
-                            <div>
-                              <p className="font-medium text-sm">Matter Hub Update</p>
-                              <p className="text-xs text-muted-foreground">update.home_assistant_matter_hub_update</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge 
-                                variant="outline" 
-                                className={getStateStatusColor(haStatusStates["update.home_assistant_matter_hub_update"] || "")}
-                              >
-                                {haStatusStates["update.home_assistant_matter_hub_update"] || "Unknown"}
-                              </Badge>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between p-3 rounded-lg border">
-                            <div>
-                              <p className="font-medium text-sm">Operating System Update</p>
-                              <p className="text-xs text-muted-foreground">update.home_assistant_operating_system_update</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge 
-                                variant="outline" 
-                                className={getStateStatusColor(haStatusStates["update.home_assistant_operating_system_update"] || "")}
-                              >
-                                {haStatusStates["update.home_assistant_operating_system_update"] || "Unknown"}
-                              </Badge>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between p-3 rounded-lg border">
-                            <div>
-                              <p className="font-medium text-sm">Supervisor Update</p>
-                              <p className="text-xs text-muted-foreground">update.home_assistant_supervisor_update</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge 
-                                variant="outline" 
-                                className={getStateStatusColor(haStatusStates["update.home_assistant_supervisor_update"] || "")}
-                              >
-                                {haStatusStates["update.home_assistant_supervisor_update"] || "Unknown"}
-                              </Badge>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-                          <p className="text-xs text-muted-foreground">
-                            <strong>Status Guide:</strong> When these states are visible and responding, 
-                            it indicates your Home Assistant connection is working properly. 
-                            Green states (on/idle/no_update) are healthy, yellow indicates activity, 
-                            and red means unavailable or error.
-                          </p>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </>
+                      <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+                        <p className="text-xs text-muted-foreground">
+                          <strong>Status Guide:</strong> When these states are visible and responding, 
+                          it indicates your Home Assistant connection is working properly. 
+                          Green states (on/idle/no_update) are healthy, yellow indicates activity, 
+                          and red means unavailable or error.
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        {/* Weather API Configuration */}
         <TabsContent value="weather" className="space-y-6">
           <Card>
             <CardHeader>
@@ -1431,115 +1377,111 @@ export default function SettingsPage() {
                     </div>
                   )}
 
-                  {/* ZIP Code Lookup Section */}
-                  {weatherProvider !== "ha_integration" && (
-                    <div className="mt-6 p-4 bg-blue-50 rounded-lg border">
-                      <Label className="text-base font-medium mb-3 block">Or Enter ZIP Code for Location</Label>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                        <div>
-                          <Label htmlFor="weather-zip">5-Digit ZIP Code</Label>
-                          <Input
-                            id="weather-zip"
-                            placeholder="e.g., 90210"
-                            maxLength={5}
-                            pattern="[0-9]{5}"
-                            value={weatherLocation.zip || ''}
-                            onChange={(e) => setWeatherLocation(prev => ({ ...prev, zip: e.target.value }))}
-                          />
-                        </div>
-                        <div className="md:col-span-2">
-                          <Button
-                            onClick={async () => {
-                              if (!weatherLocation.zip || weatherLocation.zip.length !== 5 || !weatherApiKey) {
-                                toast.error("Enter a valid 5-digit ZIP code and ensure API key is set");
-                                return;
+                  <div className="mt-6 p-4 bg-blue-50 rounded-lg border">
+                    <Label className="text-base font-medium mb-3 block">Or Enter ZIP Code for Location</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                      <div>
+                        <Label htmlFor="weather-zip">5-Digit ZIP Code</Label>
+                        <Input
+                          id="weather-zip"
+                          placeholder="e.g., 90210"
+                          maxLength={5}
+                          pattern="[0-9]{5}"
+                          value={weatherLocation.zip || ''}
+                          onChange={(e) => setWeatherLocation(prev => ({ ...prev, zip: e.target.value }))}
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Button
+                          onClick={async () => {
+                            if (!weatherLocation.zip || weatherLocation.zip.length !== 5 || !weatherApiKey) {
+                              toast.error("Enter a valid 5-digit ZIP code and ensure API key is set");
+                              return;
+                            }
+
+                            try {
+                              const loadingToast = toast.loading("Looking up ZIP code...");
+                              let lookupUrl = "";
+                              let country = "US";
+
+                              switch (weatherProvider) {
+                                case "openweathermap":
+                                  lookupUrl = `https://api.openweathermap.org/geo/1.0/zip?zip=${weatherLocation.zip},${country}&appid=${weatherApiKey}`;
+                                  break;
+                                case "weatherapi":
+                                  lookupUrl = `https://api.weatherapi.com/v1/search.json?key=${weatherApiKey}&q=${weatherLocation.zip}`;
+                                  break;
+                                case "accuweather":
+                                  lookupUrl = `https://dataservice.accuweather.com/locations/v1/cities/search?apikey=${weatherApiKey}&q=${weatherLocation.zip}`;
+                                  break;
+                                default:
+                                  throw new Error("ZIP lookup not supported for this provider");
                               }
 
-                              try {
-                                const loadingToast = toast.loading("Looking up ZIP code...");
-                                let lookupUrl = "";
-                                let country = "US";
+                              const response = await fetch(lookupUrl);
+                              if (!response.ok) throw new Error(`Lookup failed: HTTP ${response.status}`);
 
-                                switch (weatherProvider) {
-                                  case "openweathermap":
-                                    lookupUrl = `https://api.openweathermap.org/geo/1.0/zip?zip=${weatherLocation.zip},${country}&appid=${weatherApiKey}`;
-                                    break;
-                                  case "weatherapi":
-                                    lookupUrl = `https://api.weatherapi.com/v1/search.json?key=${weatherApiKey}&q=${weatherLocation.zip}`;
-                                    break;
-                                  case "accuweather":
-                                    lookupUrl = `https://dataservice.accuweather.com/locations/v1/cities/search?apikey=${weatherApiKey}&q=${weatherLocation.zip}`;
-                                    break;
-                                  default:
-                                    throw new Error("ZIP lookup not supported for this provider");
-                                }
+                              const data = await response.json();
 
-                                const response = await fetch(lookupUrl);
-                                if (!response.ok) throw new Error(`Lookup failed: HTTP ${response.status}`);
+                              let lat: number, lon: number, city: string, countryCode: string, locationKey?: string;
 
-                                const data = await response.json();
-
-                                let lat: number, lon: number, city: string, countryCode: string, locationKey?: string;
-
-                                switch (weatherProvider) {
-                                  case "openweathermap":
-                                    if (!data.lat || !data.lon) throw new Error("Invalid ZIP code");
-                                    lat = data.lat;
-                                    lon = data.lon;
-                                    city = data.name;
-                                    countryCode = data.country;
-                                    break;
-                                  case "weatherapi":
-                                    if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid ZIP code");
-                                    const firstResult = data[0];
-                                    lat = firstResult.lat;
-                                    lon = firstResult.lon;
-                                    city = firstResult.name;
-                                    countryCode = firstResult.country;
-                                    break;
-                                  case "accuweather":
-                                    if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid ZIP code");
-                                    const accuResult = data[0];
-                                    lat = accuResult.GeoPosition.Latitude;
-                                    lon = accuResult.GeoPosition.Longitude;
-                                    city = accuResult.LocalizedName;
-                                    countryCode = accuResult.Country.LocalizedName;
-                                    locationKey = accuResult.Key;
-                                    break;
-                                }
-
-                                const newLocation = { 
-                                  lat, 
-                                  lon, 
-                                  city, 
-                                  country: countryCode, 
-                                  zip: weatherLocation.zip,
-                                  locationKey 
-                                };
-
-                                setWeatherLocation(newLocation);
-                                weatherApiSettings.setSetting("location", newLocation);
-
-                                toast.dismiss(loadingToast);
-                                toast.success(`Location set via ZIP: ${city}, ${countryCode}`);
-
-                                // Auto-test after lookup
-                                setTimeout(() => testWeatherApi(), 500);
-                              } catch (error: any) {
-                                toast.dismiss(loadingToast);
-                                toast.error(`ZIP lookup failed: ${error.message}`);
+                              switch (weatherProvider) {
+                                case "openweathermap":
+                                  if (!data.lat || !data.lon) throw new Error("Invalid ZIP code");
+                                  lat = data.lat;
+                                  lon = data.lon;
+                                  city = data.name;
+                                  countryCode = data.country;
+                                  break;
+                                case "weatherapi":
+                                  if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid ZIP code");
+                                  const firstResult = data[0];
+                                  lat = firstResult.lat;
+                                  lon = firstResult.lon;
+                                  city = firstResult.name;
+                                  countryCode = firstResult.country;
+                                  break;
+                                case "accuweather":
+                                  if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid ZIP code");
+                                  const accuResult = data[0];
+                                  lat = accuResult.GeoPosition.Latitude;
+                                  lon = accuResult.GeoPosition.Longitude;
+                                  city = accuResult.LocalizedName;
+                                  countryCode = accuResult.Country.LocalizedName;
+                                  locationKey = accuResult.Key;
+                                  break;
                               }
-                            }}
-                            className="w-full"
-                            disabled={!weatherApiKey}
-                          >
-                            <MapPin className="h-4 w-4 mr-2" />
-                            Lookup by ZIP Code
-                          </Button>
-                        </div>
+
+                              const newLocation = { 
+                                lat, 
+                                lon, 
+                                city, 
+                                country: countryCode, 
+                                zip: weatherLocation.zip,
+                                locationKey 
+                              };
+
+                              setWeatherLocation(newLocation);
+                              weatherApiSettings.setSetting("location", newLocation);
+
+                              toast.dismiss(loadingToast);
+                              toast.success(`Location set via ZIP: ${city}, ${countryCode}`);
+
+                              setTimeout(() => testWeatherApi(), 500);
+                            } catch (error: any) {
+                              toast.dismiss(loadingToast);
+                              toast.error(`ZIP lookup failed: ${error.message}`);
+                            }
+                          }}
+                          className="w-full"
+                          disabled={!weatherApiKey}
+                        >
+                          <MapPin className="h-4 w-4 mr-2" />
+                          Lookup by ZIP Code
+                        </Button>
                       </div>
                     </div>
-                  )}
+                  </div>
                 </>
               )}
 
@@ -1564,162 +1506,6 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* Zip Code Location Tab */}
-        <TabsContent value="location" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    Zip Code Location
-                  </CardTitle>
-                  <CardDescription>
-                    Enter your zip code to automatically detect location coordinates for weather and other location-based services
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="zip-code">Zip Code</Label>
-                  <Input
-                    id="zip-code"
-                    placeholder="Enter 5-digit zip code (e.g., 90210)"
-                    maxLength={5}
-                    pattern="[0-9]{5}"
-                    value={weatherLocation.zip || ''}
-                    onChange={(e) => setWeatherLocation(prev => ({ ...prev, zip: e.target.value }))}
-                  />
-                </div>
-                <div className="flex items-end">
-                  <Button
-                    onClick={async () => {
-                      if (!weatherLocation.zip || weatherLocation.zip.length !== 5 || !weatherApiKey || weatherProvider === "ha_integration") {
-                        toast.error("Please enter a valid 5-digit ZIP code and ensure a weather API key is configured (not HA integration)");
-                        return;
-                      }
-
-                      try {
-                        toast.loading("Looking up location...");
-                        let lookupUrl = "";
-                        let country = "US"; // Default to US
-
-                        switch (weatherProvider) {
-                          case "openweathermap":
-                            lookupUrl = `https://api.openweathermap.org/geo/1.0/zip?zip=${weatherLocation.zip},${country}&appid=${weatherApiKey}`;
-                            break;
-                          case "weatherapi":
-                            lookupUrl = `https://api.weatherapi.com/v1/search.json?key=${weatherApiKey}&q=${weatherLocation.zip}`;
-                            break;
-                          case "accuweather":
-                            lookupUrl = `https://dataservice.accuweather.com/locations/v1/cities/search?apikey=${weatherApiKey}&q=${weatherLocation.zip}`;
-                            break;
-                          default:
-                            throw new Error("Provider does not support ZIP lookup");
-                        }
-
-                        const response = await fetch(lookupUrl);
-                        if (!response.ok) throw new Error(`Lookup failed: HTTP ${response.status}`);
-
-                        const data = await response.json();
-
-                        let lat: number, lon: number, city: string, countryCode: string, locationKey?: string;
-
-                        switch (weatherProvider) {
-                          case "openweathermap":
-                            if (!data.lat || !data.lon) throw new Error("Invalid ZIP code or location not found");
-                            lat = data.lat;
-                            lon = data.lon;
-                            city = data.name;
-                            countryCode = data.country;
-                            break;
-                          case "weatherapi":
-                            if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid ZIP code or location not found");
-                            const firstResult = data[0];
-                            lat = firstResult.lat;
-                            lon = firstResult.lon;
-                            city = firstResult.name;
-                            countryCode = firstResult.country;
-                            break;
-                          case "accuweather":
-                            if (!Array.isArray(data) || data.length === 0) throw new Error("Invalid ZIP code or location not found");
-                            const accuResult = data[0];
-                            lat = accuResult.GeoPosition.Latitude;
-                            lon = accuResult.GeoPosition.Longitude;
-                            city = accuResult.LocalizedName;
-                            countryCode = accuResult.Country.LocalizedName;
-                            locationKey = accuResult.Key;
-                            break;
-                        }
-
-                        const newLocation = { 
-                          lat, 
-                          lon, 
-                          city, 
-                          country: countryCode, 
-                          locationKey,
-                          zip: weatherLocation.zip // Preserve zip
-                        };
-
-                        setWeatherLocation(newLocation);
-                        weatherApiSettings.setSetting("location", newLocation);
-
-                        toast.success(`Location set: ${city}, ${countryCode} (${lat.toFixed(4)}, ${lon.toFixed(4)})`);
-
-                        // Auto-test weather API after successful lookup
-                        setTimeout(() => testWeatherApi(), 1000);
-                      } catch (error: any) {
-                        toast.error(`ZIP lookup failed: ${error.message}`);
-                      }
-                    }}
-                    className="w-full"
-                    disabled={!weatherApiKey || weatherProvider === "ha_integration"}
-                  >
-                    Lookup Location
-                  </Button>
-                </div>
-              </div>
-
-              {/* Current Location Display */}
-              {weatherLocation.city && (
-                <div className="p-3 bg-muted rounded-lg">
-                  <div className="font-medium">Current Location</div>
-                  <p className="text-sm">Zip: {weatherLocation.zip || 'Not set'}</p>
-                  <p className="text-sm">City: {weatherLocation.city}, {weatherLocation.country}</p>
-                  <p className="text-xs text-muted-foreground">Coordinates: {weatherLocation.lat.toFixed(4)}, {weatherLocation.lon.toFixed(4)}</p>
-                  {weatherProvider === "accuweather" && weatherLocation.locationKey && (
-                    <p className="text-xs text-muted-foreground">Location Key: {weatherLocation.locationKey}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Manual Coordinate Override */}
-              <div className="space-y-2">
-                <Label>Manual Coordinate Override (Optional)</Label>
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    type="number"
-                    step="any"
-                    placeholder="Latitude"
-                    value={weatherLocation.lat || ''}
-                    onChange={(e) => setWeatherLocation(prev => ({ ...prev, lat: parseFloat(e.target.value) || 0 }))}
-                  />
-                  <Input
-                    type="number"
-                    step="any"
-                    placeholder="Longitude"
-                    value={weatherLocation.lon || ''}
-                    onChange={(e) => setWeatherLocation(prev => ({ ...prev, lon: parseFloat(e.target.value) || 0 }))}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Energy API Configuration */}
         <TabsContent value="energy" className="space-y-6">
           <Card>
             <CardHeader>
@@ -1845,7 +1631,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Billing Rate Structure Card */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -1870,7 +1655,6 @@ export default function SettingsPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Rate Tiers Section */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <Label className="text-base font-medium">Rate Tiers ($/kWh)</Label>
@@ -1928,7 +1712,6 @@ export default function SettingsPage() {
 
               <Separator />
 
-              {/* Fixed Charges Section */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <Label className="text-base font-medium">Fixed Monthly Charges</Label>
@@ -1976,7 +1759,6 @@ export default function SettingsPage() {
 
               <Separator />
 
-              {/* Taxes Section */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <Label className="text-base font-medium">Taxes & Fees (%)</Label>
@@ -2022,7 +1804,6 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Preview Section */}
               <div className="p-4 bg-muted/50 rounded-lg">
                 <h4 className="font-medium mb-2">Billing Structure Preview</h4>
                 <div className="text-sm space-y-1">
@@ -2046,7 +1827,6 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* Local Services */}
         <TabsContent value="services" className="space-y-6">
           <Card>
             <CardHeader>
@@ -2059,7 +1839,6 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Database Section */}
               <div className="space-y-3">
                 <Label>SQLite Database</Label>
                 <div className="space-y-2">
@@ -2080,7 +1859,6 @@ export default function SettingsPage() {
 
               <Separator />
 
-              {/* Add a simple section for database operations */}
               <div className="space-y-3">
                 <Label>Database Operations</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2098,7 +1876,6 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* Appearance Settings */}
         <TabsContent value="appearance" className="space-y-6">
           <Card>
             <CardHeader>
@@ -2215,7 +1992,6 @@ export default function SettingsPage() {
                 />
               </div>
 
-              {/* Preview Area */}
               <div className="p-4 rounded-md border" style={{
                 backgroundColor: appearance.backgroundColor,
                 color: appearance.textColor,
@@ -2229,7 +2005,6 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* API Keys & Integrations */}
         <TabsContent value="api-keys" className="space-y-6">
           <Card>
             <CardHeader>
@@ -2246,7 +2021,6 @@ export default function SettingsPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Google OAuth for Calendar */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -2308,13 +2082,11 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Additional API Keys Section */}
               <Separator />
               
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Other API Keys</h3>
                 
-                {/* OpenAI Key for Assistant */}
                 <div className="space-y-2">
                   <Label htmlFor="openai-api-key">OpenAI API Key (Optional)</Label>
                   <Input
@@ -2339,7 +2111,6 @@ export default function SettingsPage() {
                   </Button>
                 </div>
 
-                {/* Weather API Keys (if not in weather tab) */}
                 <div className="space-y-2">
                   <Label>Weather API Keys (Alternative Entry)</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2375,7 +2146,6 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Instructions for Sharing */}
               <div className="p-4 bg-blue-50 rounded-lg border">
                 <h4 className="font-medium mb-2 text-blue-900">Sharing Instructions</h4>
                 <ul className="text-sm space-y-1 text-blue-800">
@@ -2390,7 +2160,6 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* Data & Backup */}
         <TabsContent value="backup" className="space-y-6">
           <Card>
             <CardHeader>
@@ -2433,7 +2202,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Privacy & Logs */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -2464,7 +2232,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Reset Settings */}
           <Card>
             <CardHeader>
               <CardTitle className="text-destructive">Reset Settings</CardTitle>
