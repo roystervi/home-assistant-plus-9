@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useHomeAssistant } from "@/hooks/useHomeAssistant";
+import { BackgroundColorCard } from "@/components/ui/background-color-card";
 
 // Interfaces for type safety
 interface ConnectionStatus {
@@ -2186,6 +2187,8 @@ export default function SettingsPage() {
                   className='mt-2 w-full h-12'
                 />
               </div>
+
+              <BackgroundColorCard />
 
               <div>
                 <Label>Text Size</Label>

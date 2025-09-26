@@ -18,7 +18,6 @@ import { useHomeAssistant } from "@/contexts/HomeAssistantContext";
 import { useThermostat } from "@/contexts/ThermostatContext";
 import { ThermostatCard } from "@/components/ui/thermostat-card";
 import { AlarmKeypad } from "@/components/ui/alarm-keypad";
-import { BackgroundColorCard } from "@/components/ui/background-color-card";
 import { useRouter } from "next/navigation";
 import { 
   Zap, 
@@ -819,11 +818,6 @@ export default function Dashboard() {
           </div>
         </div>
       </main>
-
-      {/* Background Settings Card */}
-      <div className="grid grid-cols-1 gap-6">
-        <BackgroundColorCard />
-      </div>
     </div>
   );
 }
