@@ -1278,6 +1278,136 @@ export default function SettingsPage() {
                     </Button>
                   </div>
                 </CardHeader>
+
+                {/* New Home Assistant Debug Panel */}
+                <Card className="mt-4">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-destructive">
+                      🔍 Home Assistant Debug Panel (Temporary)
+                    </CardTitle>
+                    <CardDescription>
+                      Live diagnostics for connection issues. Shows real-time hook state, errors, and sample data.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-sm font-medium">URL (Live)</Label>
+                        <Input value={haUrl} readOnly className="mt-1 bg-muted" />
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium">Token Status</Label>
+                        <div className="mt-1 flex items-center gap-2">
+                          <Badge variant={haToken ? "default" : "secondary"}>{haToken ? "Set" : "Missing"}</Badge>
+                          {haToken && <span className="text-xs text-muted-foreground">Length: {haToken.length}</span>}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={testHaConnection} 
+                        disabled={connectionStatus.ha === 'testing' || !haUrl || !haToken}
+                        className="flex-1"
+                      >
+                        {connectionStatus.ha === 'testing' ? (
+                          <>
+                            <Wifi className="h-4 w-4 mr-2 animate-spin" />
+                            Testing...
+                          </>
+                        ) : (
+                          <>
+                            <Wifi className="h-4 w-4 mr-2" />
+                            Test HA Connection
+                          </>
+                        )}
+                      </Button>
+                      <Button 
+                        onClick={() => window.open(haUrl, '_blank')} 
+                        disabled={!haUrl}
+                        variant="outline"
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Open HA
+                      </Button>
+                    </div>
+
+                    {/* Debug Output */}
+                    {debugData && (
+                      <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">Connection: {debugData.isConnected ? "✅ Connected" : "❌ Disconnected"}</span>
+                          <Badge variant={debugData.isConnected ? "default" : "destructive"}>
+                            {debugData.isConnected ? "Live" : "Failed"}
+                          </Badge>
+                        </div>
+                        {debugData.error && (
+                          <div className="bg-destructive/10 text-destructive p-2 rounded text-sm">
+                            <strong>Error:</strong> {debugData.error}
+                            <br />
+                            <small>Check: Token valid? CORS enabled? HA running on {new URL(haUrl).hostname}?</small>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>Entities Fetched: {debugData.entitiesCount || 0}</div>
+                          <div>Last Sync: {debugData.lastSync ? new Date(debugData.lastSync).toLocaleString() : "Never"}</div>
+                          <div>State: {debugData.loading ? "Loading..." : debugData.syncingData ? "Syncing..." : "Idle"}</div>
+                          {debugData.isConnected && <div>Version: {debugData.haVersion || "N/A"}</div>}
+                        </div>
+
+                        {/* Sample Entities */}
+                        {debugData.isConnected && debugData.sampleEntities && debugData.sampleEntities.length > 0 && (
+                          <div>
+                            <Label className="text-sm font-medium mb-2 block">Sample Entities (First 5):</Label>
+                            <div className="max-h-32 overflow-y-auto space-y-1">
+                              {debugData.sampleEntities.map((entity, idx) => (
+                                <div key={idx} className="text-xs p-1 bg-background rounded flex justify-between">
+                                  <span>{entity.entity_id}</span>
+                                  <span className="font-mono">{entity.state}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {!debugData.isConnected && !debugData.error && (
+                          <div className="text-sm text-muted-foreground">
+                            No data yet. Click "Test HA Connection" or "Fetch Sample Data" above.
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 pt-2 border-t">
+                      <Button 
+                        onClick={() => { /* Fetch sample data using hook */ }} 
+                        disabled={!haUrl || !haToken}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Fetch Sample Data
+                      </Button>
+                      <Button 
+                        onClick={() => { /* Clear debug - remove panel */ }} 
+                        variant="ghost"
+                        size="sm"
+                      >
+                        Close Debug (Resolved)
+                      </Button>
+                    </div>
+
+                    <div className="text-xs text-muted-foreground p-2 bg-muted/30 rounded">
+                      <strong>Troubleshooting Tips:</strong>
+                      <ul className="mt-1 space-y-1 list-disc list-inside">
+                        <li>Missing Token: Generate in HA &gt; Profile &gt; Tokens (long-lived, expires in 30 days)</li>
+                        <li>CORS Error: Add your domain to HA config.yaml: http: cors_allowed_origins: ["*"] then restart HA</li>
+                        <li>Network: Ping {new URL(haUrl).hostname} from browser console; check firewall/port 8123</li>
+                        <li>0 Entities: HA API working but no devices? Check HA logs for access issues</li>
+                      </ul>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <CardContent>
                   {connectionStatus.ha === 'testing' ? (
                     <div className='text-center py-8'>
