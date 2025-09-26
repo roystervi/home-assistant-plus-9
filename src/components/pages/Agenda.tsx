@@ -48,6 +48,7 @@ import { useHomeAssistant } from "@/contexts/HomeAssistantContext";
 import { storage } from "@/lib/storage";
 import { holidayService, Holiday } from "@/lib/holidays-service";
 import { useSearchParams } from "next/navigation";
+import { useSession } from "@/lib/auth-client";
 
 // Types for agenda items
 interface AgendaEvent {
@@ -167,6 +168,7 @@ export default function Agenda() {
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
   const [googleSyncLoading, setGoogleSyncLoading] = useState(false);
   const searchParams = useSearchParams();
+  const { data: session, isPending: sessionLoading } = useSession();
 
   // Load data on component mount
   useEffect(() => {
