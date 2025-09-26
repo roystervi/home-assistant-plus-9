@@ -8,7 +8,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { 
   Calendar, 
   CalendarPlus, 
@@ -169,32 +169,6 @@ export default function Agenda() {
   const [googleSyncLoading, setGoogleSyncLoading] = useState(false);
   const searchParams = useSearchParams();
   const { data: session, isPending: sessionLoading } = useSession();
-
-  // Load data on component mount
-  useEffect(() => {
-    loadLocalData();
-    loadSettings();
-    loadHolidays();
-    if (isConnected) {
-      syncWithHomeAssistant();
-    }
-  }, [isConnected, loadLocalData, loadSettings, loadHolidays, syncWithHomeAssistant]);
-
-  // Load holidays when date or settings change
-  useEffect(() => {
-    loadHolidays();
-  }, [selectedDate, calendarSettings.enabledHolidayTypes, calendarSettings.showHolidays, loadHolidays]);
-
-  // Auto-sync every interval
-  useEffect(() => {
-    if (!isConnected || calendarSettings.syncInterval <= 0) return;
-    
-    const interval = setInterval(() => {
-      syncWithHomeAssistant();
-    }, calendarSettings.syncInterval * 60 * 1000);
-    
-    return () => clearInterval(interval);
-  }, [isConnected, calendarSettings.syncInterval, syncWithHomeAssistant]);
 
   // Load data from localStorage
   const loadLocalData = useCallback(() => {
@@ -534,9 +508,9 @@ export default function Agenda() {
     } finally {
       setGoogleSyncLoading(false);
     }
-  }, [session, isGoogleConnected, googleSyncLoading, selectedDate, events]);
+  }, [session, isGoogleConnected, googleSyncLoading, selectedDate, events, connectGoogleCalendar]);
 
-  // Add this new function after checkGoogleConnection
+  // Test Google Connection and Preview
   const testGoogleConnectionAndPreview = useCallback(async () => {
     if (!session?.user || !isGoogleConnected) {
       toast.error('Please connect Google Calendar first');
@@ -713,7 +687,7 @@ export default function Agenda() {
   }, [saveLocalData]);
 
   // Update filteredEvents to include Google source in filter
-  const filteredEvents = events.filter(event => {
+  const filteredEvents = useMemo(() => events.filter(event => {
     const matchesSearch = !searchQuery || 
       event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       event.description?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -721,7 +695,7 @@ export default function Agenda() {
     const matchesDate = event.date === selectedDate.toISOString().split('T')[0];
     
     return matchesSearch && matchesSource && matchesDate;
-  });
+  }), [events, searchQuery, filterSource, selectedDate]);
 
   // Get holidays for selected date
   const dayHolidays = holidays.filter(holiday => 
