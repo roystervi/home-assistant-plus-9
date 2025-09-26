@@ -218,78 +218,6 @@ export default function Agenda() {
     setCalendarSettings(settings);
   }, []);
 
-  // Sync with Home Assistant
-  const syncWithHomeAssistant = useCallback(async () => {
-    if (!isConnected) {
-      toast.error("Not connected to Home Assistant");
-      return;
-    }
-
-    setIsSyncing(true);
-    try {
-      // Get calendar entities
-      const calendarEntities = Object.entries(entities)
-        .filter(([entityId]) => entityId.startsWith('calendar.'))
-        .map(([entityId, entity]) => ({ entityId, entity }));
-
-      // Fetch events from HA calendar entities
-      const haEvents: AgendaEvent[] = [];
-      for (const { entityId, entity } of calendarEntities) {
-        try {
-          // Get events for the next 30 days
-          const startDate = new Date();
-          const endDate = new Date();
-          endDate.setDate(startDate.getDate() + 30);
-          
-          const response = await fetch('/api/home-assistant/calendar-events', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              entity_id: entityId,
-              start_date: startDate.toISOString(),
-              end_date: endDate.toISOString()
-            })
-          });
-
-          if (response.ok) {
-            const eventData = await response.json();
-            const entityEvents = eventData.events?.map((event: any) => ({
-              id: `ha_${entityId}_${event.uid || Math.random()}`,
-              title: event.summary || 'Untitled Event',
-              description: event.description,
-              date: event.start?.date || event.start?.dateTime?.split('T')[0],
-              time: event.start?.dateTime ? new Date(event.start.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'All Day',
-              endTime: event.end?.dateTime ? new Date(event.end.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : undefined,
-              source: "ha" as const,
-              location: event.location,
-              entityId,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            })) || [];
-            
-            haEvents.push(...entityEvents);
-          }
-        } catch (error) {
-          console.error(`Error fetching events from ${entityId}:`, error);
-        }
-      }
-
-      // Merge HA events with local events (remove old HA events first)
-      const localEvents = events.filter(e => e.source !== 'ha');
-      setEvents([...localEvents, ...haEvents]);
-      
-      setLastSyncTime(new Date());
-      toast.success(`Synced ${haEvents.length} events from Home Assistant`);
-      
-    } catch (error) {
-      console.error('Sync error:', error);
-      toast.error("Failed to sync with Home Assistant");
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [isConnected, entities, events]);
-
-  // Sync with Google Calendar
   const syncWithGoogleCalendar = useCallback(async () => {
     if (!session?.user || !isGoogleConnected) {
       toast.error('Please connect Google Calendar first');
@@ -375,7 +303,76 @@ export default function Agenda() {
     }
   }, [session, isGoogleConnected, googleSyncLoading, selectedDate, events]);
 
-  // Connect Google Calendar
+  const syncWithHomeAssistant = useCallback(async () => {
+    if (!isConnected) {
+      toast.error("Not connected to Home Assistant");
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      // Get calendar entities
+      const calendarEntities = Object.entries(entities)
+        .filter(([entityId]) => entityId.startsWith('calendar.'))
+        .map(([entityId, entity]) => ({ entityId, entity }));
+
+      // Fetch events from HA calendar entities
+      const haEvents: AgendaEvent[] = [];
+      for (const { entityId, entity } of calendarEntities) {
+        try {
+          // Get events for the next 30 days
+          const startDate = new Date();
+          const endDate = new Date();
+          endDate.setDate(startDate.getDate() + 30);
+          
+          const response = await fetch('/api/home-assistant/calendar-events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              entity_id: entityId,
+              start_date: startDate.toISOString(),
+              end_date: endDate.toISOString()
+            })
+          });
+
+          if (response.ok) {
+            const eventData = await response.json();
+            const entityEvents = eventData.events?.map((event: any) => ({
+              id: `ha_${entityId}_${event.uid || Math.random()}`,
+              title: event.summary || 'Untitled Event',
+              description: event.description,
+              date: event.start?.date || event.start?.dateTime?.split('T')[0],
+              time: event.start?.dateTime ? new Date(event.start.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'All Day',
+              endTime: event.end?.dateTime ? new Date(event.end.dateTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : undefined,
+              source: "ha" as const,
+              location: event.location,
+              entityId,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            })) || [];
+            
+            haEvents.push(...entityEvents);
+          }
+        } catch (error) {
+          console.error(`Error fetching events from ${entityId}:`, error);
+        }
+      }
+
+      // Merge HA events with local events (remove old HA events first)
+      const localEvents = events.filter(e => e.source !== 'ha');
+      setEvents([...localEvents, ...haEvents]);
+      
+      setLastSyncTime(new Date());
+      toast.success(`Synced ${haEvents.length} events from Home Assistant`);
+      
+    } catch (error) {
+      console.error('Sync error:', error);
+      toast.error("Failed to sync with Home Assistant");
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [isConnected, entities, events]);
+
   const connectGoogleCalendar = useCallback(async () => {
     if (!session?.user) {
       toast.error('Please log in first');
@@ -434,7 +431,7 @@ export default function Agenda() {
               clearInterval(interval);
               setIsGoogleConnected(true);
               toast.success('Google Calendar connected! Syncing events...');
-              await syncWithGoogleCalendar(); // Auto-sync on connect
+              await syncWithGoogleCalendar(); // Now safe to call
             }
           }
         }, 2000);
@@ -791,7 +788,6 @@ export default function Agenda() {
     }
   };
 
-  // Sync all sources
   const syncAll = useCallback(async () => {
     if (isConnected) {
       await syncWithHomeAssistant();
