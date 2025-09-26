@@ -36,6 +36,7 @@ import {
   RefreshCw,
   Key,
   ExternalLink,
+  Calendar,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -163,6 +164,9 @@ export default function SettingsPage() {
   const [detailedLogs, setDetailedLogs] = useState(false);
   const [isLoadingStates, setIsLoadingStates] = useState(false);
   const [haStatusStates, setHaStatusStates] = useState<Record<string, any>>({});
+  const [googleStatus, setGoogleStatus] = useState<'disconnected' | 'connected' | 'loading'>('disconnected');
+  const [recentEvents, setRecentEvents] = useState([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(false);
 
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
@@ -978,6 +982,73 @@ export default function SettingsPage() {
     await saveAllSettings();
     toast.success('Weather keys updated');
   }, [openWeatherKey, weatherApiComKey, saveAllSettings]);
+
+  const fetchGoogleStatus = useCallback(async () => {
+    setGoogleStatus('loading');
+    try {
+      const response = await fetch('/api/google/calendar/status');
+      if (response.ok) {
+        const data = await response.json();
+        setGoogleStatus(data.connected ? 'connected' : 'disconnected');
+        if (data.connected && !recentEvents.length) {
+          fetchRecentEvents();
+        }
+      } else {
+        setGoogleStatus('disconnected');
+      }
+    } catch (error) {
+      setGoogleStatus('disconnected');
+      console.error('Failed to fetch Google status:', error);
+    }
+  }, [recentEvents.length]);
+
+  const connectGoogleCalendar = useCallback(async () => {
+    if (!googleClientId || !googleClientSecret) {
+      toast.error('Please enter and save Google credentials first');
+      return;
+    }
+    try {
+      const response = await fetch('/api/google/calendar/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: googleClientId, clientSecret: googleClientSecret }),
+      });
+      const data = await response.json();
+      if (data.url) {
+        window.open(data.url, '_blank', 'noopener,noreferrer');
+        toast.success('Redirecting to Google for authorization...');
+      } else {
+        toast.error('Failed to generate authorization URL');
+      }
+    } catch (error) {
+      toast.error('Connection error');
+    }
+  }, [googleClientId, googleClientSecret]);
+
+  const fetchRecentEvents = useCallback(async () => {
+    if (googleStatus !== 'connected') return;
+    setIsLoadingEvents(true);
+    try {
+      const response = await fetch('/api/google/calendar/events?limit=5&timeMin=' + new Date().toISOString());
+      if (response.ok) {
+        const data = await response.json();
+        setRecentEvents(data.events || []);
+        toast.success('Recent events loaded');
+      } else {
+        toast.error('Failed to fetch events');
+      }
+    } catch (error) {
+      toast.error('Events fetch error');
+    } finally {
+      setIsLoadingEvents(false);
+    }
+  }, [googleStatus]);
+
+  useEffect(() => {
+    if (activeTab === 'api-keys') {
+      fetchGoogleStatus();
+    }
+  }, [activeTab, fetchGoogleStatus]);
 
   return (
     <div className='space-y-6'>
@@ -2199,6 +2270,79 @@ export default function SettingsPage() {
                   <li>• Add authorized redirect URIs: <code>http://localhost:3000/api/auth/callback/google</code> and <code>https://yourdomain.com/api/auth/callback/google</code></li>
                 </ul>
               </div>
+
+              {activeTab === 'api-keys' && (
+                <div className='space-y-4 mt-6'>
+                  <Separator />
+                  <div className='space-y-4'>
+                    <div className='flex items-center justify-between'>
+                      <div>
+                        <h3 className='text-lg font-semibold flex items-center gap-2'>
+                          <Calendar className='h-5 w-5' />
+                          Google Calendar Status & Data Preview
+                        </h3>
+                        <p className='text-sm text-muted-foreground'>View connection status and sample data being pulled from Google Calendar.</p>
+                      </div>
+                    </div>
+
+                    <Card>
+                      <CardContent className='p-4 space-y-4'>
+                        <div className='flex items-center justify-between'>
+                          <span className='text-sm font-medium'>Connection Status:</span>
+                          <Badge variant={googleStatus === 'connected' ? 'default' : 'secondary'}>
+                            {googleStatus === 'loading' ? 'Checking...' : googleStatus === 'connected' ? 'Connected' : 'Disconnected'}
+                          </Badge>
+                        </div>
+
+                        {googleStatus === 'disconnected' ? (
+                          <Button onClick={connectGoogleCalendar} className='w-full'>
+                            <ExternalLink className='h-4 w-4 mr-2' />
+                            Connect Google Calendar
+                          </Button>
+                        ) : googleStatus === 'loading' ? (
+                          <div className='text-center py-4'>
+                            <RefreshCw className='h-4 w-4 animate-spin mx-auto mb-2' />
+                            <p className='text-sm text-muted-foreground'>Loading status...</p>
+                          </div>
+                        ) : (
+                          <div className='space-y-3'>
+                            <Button onClick={fetchRecentEvents} disabled={isLoadingEvents} variant='outline' className='w-full'>
+                              {isLoadingEvents ? (
+                                <>
+                                  <RefreshCw className='h-4 w-4 mr-2 animate-spin' />
+                                  Loading Events...
+                                </>
+                              ) : (
+                                <>
+                                  <RefreshCw className='h-4 w-4 mr-2' />
+                                  Refresh Recent Events
+                                </>
+                              )}
+                            </Button>
+
+                            {recentEvents.length > 0 ? (
+                              <div className='space-y-2 max-h-48 overflow-y-auto'>
+                                <p className='text-sm font-medium'>Recent Events (Last 5):</p>
+                                {recentEvents.map((event, index) => (
+                                  <div key={index} className='p-2 bg-muted/50 rounded-md text-sm'>
+                                    <div className='font-medium'>{event.summary || 'No Title'}</div>
+                                    <div className='text-xs text-muted-foreground'>
+                                      {new Date(event.start.dateTime || event.start.date).toLocaleDateString()} - 
+                                      {event.start.dateTime && new Date(event.end.dateTime || event.end.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : !isLoadingEvents ? (
+                              <p className='text-sm text-muted-foreground text-center py-4'>No recent events found. Your calendar may be empty or events are in the future.</p>
+                            ) : null}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
