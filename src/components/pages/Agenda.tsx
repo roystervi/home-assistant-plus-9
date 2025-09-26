@@ -178,12 +178,12 @@ export default function Agenda() {
     if (isConnected) {
       syncWithHomeAssistant();
     }
-  }, [isConnected]);
+  }, [isConnected, loadLocalData, loadSettings, loadHolidays, syncWithHomeAssistant]);
 
   // Load holidays when date or settings change
   useEffect(() => {
     loadHolidays();
-  }, [selectedDate, calendarSettings.enabledHolidayTypes, calendarSettings.showHolidays]);
+  }, [selectedDate, calendarSettings.enabledHolidayTypes, calendarSettings.showHolidays, loadHolidays]);
 
   // Auto-sync every interval
   useEffect(() => {
@@ -194,7 +194,7 @@ export default function Agenda() {
     }, calendarSettings.syncInterval * 60 * 1000);
     
     return () => clearInterval(interval);
-  }, [isConnected, calendarSettings.syncInterval]);
+  }, [isConnected, calendarSettings.syncInterval, syncWithHomeAssistant]);
 
   // Load data from localStorage
   const loadLocalData = useCallback(() => {
@@ -390,7 +390,7 @@ export default function Agenda() {
     } finally {
       setGoogleSyncLoading(false);
     }
-  }, [session, isGoogleConnected]);
+  }, [session, isGoogleConnected, syncWithGoogleCalendar]);
 
   // Disconnect Google Calendar
   const disconnectGoogleCalendar = useCallback(async () => {
@@ -610,6 +610,108 @@ export default function Agenda() {
     }
   }, [session, isGoogleConnected, googleSyncLoading, syncWithGoogleCalendar]);
 
+  // Add Event
+  const addEvent = useCallback((eventData: Partial<AgendaEvent>) => {
+    const id = crypto.randomUUID?.() || Date.now().toString();
+    const newEvent: AgendaEvent = {
+      id,
+      title: eventData.title || '',
+      description: eventData.description,
+      date: eventData.date || selectedDate.toISOString().split('T')[0],
+      time: eventData.time || '',
+      endTime: eventData.endTime,
+      source: 'local',
+      location: eventData.location,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setEvents(prev => [...prev, newEvent]);
+    saveLocalData();
+    setNewEvent({});
+    setIsAddEventOpen(false);
+    toast.success('Event added successfully');
+  }, [selectedDate, saveLocalData]);
+
+  // Delete Event
+  const deleteEvent = useCallback((id: string) => {
+    setEvents(prev => prev.filter(e => e.id !== id));
+    saveLocalData();
+    toast.success('Event deleted');
+  }, [saveLocalData]);
+
+  // Add Todo
+  const addTodo = useCallback((todoData: Partial<TodoItem>) => {
+    const id = crypto.randomUUID?.() || Date.now().toString();
+    const newTodo: TodoItem = {
+      id,
+      title: todoData.title || '',
+      description: todoData.description,
+      priority: todoData.priority || 'medium',
+      completed: false,
+      dueDate: todoData.dueDate,
+      dueTime: todoData.dueTime,
+      category: todoData.category,
+      relatedEntity: todoData.relatedEntity,
+      estimatedMinutes: todoData.estimatedMinutes,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setTodos(prev => [...prev, newTodo]);
+    saveLocalData();
+    setNewTodo({});
+    setIsAddTodoOpen(false);
+    toast.success('Todo added');
+  }, [saveLocalData]);
+
+  // Delete Todo
+  const deleteTodo = useCallback((id: string) => {
+    setTodos(prev => prev.filter(t => t.id !== id));
+    saveLocalData();
+    toast.success('Todo deleted');
+  }, [saveLocalData]);
+
+  // Toggle Todo
+  const toggleTodo = useCallback((id: string) => {
+    setTodos(prev => prev.map(todo => 
+      todo.id === id 
+        ? { ...todo, completed: !todo.completed, updatedAt: new Date().toISOString(), completedAt: !todo.completed ? new Date().toISOString() : todo.completedAt }
+        : todo
+    ));
+    saveLocalData();
+  }, [saveLocalData]);
+
+  // Add Reminder
+  const addReminder = useCallback((reminderData: Partial<Reminder>) => {
+    const id = crypto.randomUUID?.() || Date.now().toString();
+    const newReminder: Reminder = {
+      id,
+      title: reminderData.title || '',
+      description: reminderData.description,
+      time: reminderData.time || '',
+      date: reminderData.date || selectedDate.toISOString().split('T')[0],
+      type: reminderData.type || 'general',
+      isActive: true,
+      linkedTo: reminderData.linkedTo,
+      isRecurring: reminderData.isRecurring,
+      recurrenceRule: reminderData.recurrenceRule,
+      snoozeUntil: reminderData.snoozeUntil,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setReminders(prev => [...prev, newReminder]);
+    saveLocalData();
+    setNewReminder({});
+    setIsAddReminderOpen(false);
+    toast.success('Reminder added');
+  }, [selectedDate, saveLocalData]);
+
+  // Delete Reminder
+  const deleteReminder = useCallback((id: string) => {
+    setReminders(prev => prev.filter(r => r.id !== id));
+    saveLocalData();
+    toast.success('Reminder deleted');
+  }, [saveLocalData]);
+
   // Update filteredEvents to include Google source in filter
   const filteredEvents = events.filter(event => {
     const matchesSearch = !searchQuery || 
@@ -628,8 +730,7 @@ export default function Agenda() {
 
   // Combine events and holidays for display
   const combinedEvents = [
-    ...filteredEvents.map(e => ({ ...e, source: e.source || 'local' })), // Ensure source exists
-    ...(isGoogleConnected ? mappedEvents : []), // Add synced Google events
+    ...filteredEvents.map(e => ({ ...e, source: e.source || 'local' })),
     ...dayHolidays.map(holiday => ({
       id: holiday.id,
       title: holiday.name,
@@ -648,7 +749,7 @@ export default function Agenda() {
     if (a.time === 'All Day' && b.time !== 'All Day') return -1;
     if (a.time !== 'All Day' && b.time === 'All Day') return 1;
     if (a.time === 'All Day' && b.time === 'All Day') return 0;
-    return a.time.localeCompare(b.time);
+    return (a.time || '00:00').localeCompare(b.time || '00:00');
   });
 
   const filteredTodos = todos.filter(todo => {
