@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { authClient } from '@/lib/auth-client';
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -25,25 +24,42 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    const { data, error } = await authClient.signIn.email({
-      email: formData.email,
-      password: formData.password,
-      rememberMe: formData.rememberMe,
-      callbackURL: callbackURL,
-    });
+    try {
+      const response = await fetch('/api/auth/sign-in/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          rememberMe: formData.rememberMe,
+          callbackURL: callbackURL,
+        })
+      });
 
-    if (error?.code) {
-      const errorMap = {
-        INVALID_EMAIL_OR_PASSWORD: "Invalid email or password. Please make sure you have already registered an account and try again.",
-      };
-      toast.error(errorMap[error.code] || 'Login failed. Please try again.');
+      if (!response.ok) {
+        const result = await response.json();
+        const error = result.error || { code: 'UNKNOWN' };
+        const errorMap = {
+          INVALID_EMAIL_OR_PASSWORD: "Invalid email or password. Please make sure you have already registered an account and try again.",
+        };
+        toast.error(errorMap[error.code] || 'Login failed. Please try again.');
+        return;
+      }
+
+      const result = await response.json();
+      if (result.token) {
+        localStorage.setItem('bearer_token', result.token);
+      }
+
+      toast.success('Logged in successfully!');
+      router.push(callbackURL);
+      router.refresh();
+    } catch (err) {
+      toast.error('Network error. Please try again.');
+    } finally {
       setIsLoading(false);
-      return;
     }
-
-    setIsLoading(false);
-    toast.success('Logged in successfully!');
-    router.push(callbackURL);
   };
 
   const registered = searchParams.get('registered') === 'true';
