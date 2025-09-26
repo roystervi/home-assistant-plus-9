@@ -2162,33 +2162,7 @@ export default function SettingsPage() {
                 </Select>
               </div>
 
-              <div>
-                <Label>Background Color</Label>
-                <div className='grid grid-cols-7 gap-2 mt-2'>
-                  {backgroundSwatches.map((swatch) => (
-                    <button
-                      key={swatch.name}
-                      type='button'
-                      className={`w-12 h-12 rounded-md border-2 ${
-                        appearance.backgroundColor === swatch.value 
-                          ? 'border-primary ring-2 ring-ring ring-offset-2' 
-                          : 'border-border'
-                      }`}
-                      style={{ backgroundColor: swatch.value }}
-                      onClick={() => handleBackgroundChange(swatch.value)}
-                      title={swatch.name}
-                    />
-                  ))}
-                </div>
-                <Input
-                  type='color'
-                  value={appearance.backgroundColor}
-                  onChange={(e) => handleBackgroundChange(e.target.value)}
-                  className='mt-2 w-full h-12'
-                />
-              </div>
-
-              <BackgroundColorCard />
+              <BackgroundColorCard value={appearance.backgroundColor} onChange={handleBackgroundChange} />
 
               <div>
                 <Label>Text Size</Label>
