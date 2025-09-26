@@ -2162,6 +2162,8 @@ export default function SettingsPage() {
                 </Select>
               </div>
 
+              <BackgroundColorCard value={appearance.backgroundColor} onChange={handleBackgroundChange} />
+
               <div>
                 <Label>Text Size</Label>
                 <div className='mt-2 space-y-2'>
