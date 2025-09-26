@@ -3,8 +3,9 @@ import Agenda from "@/components/pages/Agenda";
 
 export default function Page() {
   return (
-    <ClientLayout currentPage="agenda">
-      <Agenda />
-    </ClientLayout>
+    <div className="p-8">
+      <h1>Agenda Page</h1>
+      <p>This confirms the route works.</p>
+    </div>
   );
 }
