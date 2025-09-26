@@ -27,7 +27,9 @@ import {
   Edit3,
   Home,
   Pill,
-  Settings
+  Settings,
+  RefreshCw,
+  XCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +47,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { useHomeAssistant } from "@/contexts/HomeAssistantContext";
 import { storage } from "@/lib/storage";
 import { holidayService, Holiday } from "@/lib/holidays-service";
+import { useSearchParams } from "next/navigation";
 
 // Types for agenda items
 interface AgendaEvent {
@@ -96,6 +99,16 @@ interface Reminder {
   snoozeUntil?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+interface GoogleCalendarEvent {
+  id: string;
+  title: string;
+  description?: string;
+  start_date: string;
+  start_time?: string;
+  end_time?: string;
+  location?: string;
 }
 
 interface CalendarSettings {
@@ -151,6 +164,9 @@ export default function Agenda() {
   const [newReminder, setNewReminder] = useState<Partial<Reminder>>({});
   
   const { entities, isConnected, callService } = useHomeAssistant();
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [googleSyncLoading, setGoogleSyncLoading] = useState(false);
+  const searchParams = useSearchParams();
 
   // Load data on component mount
   useEffect(() => {
@@ -297,118 +313,302 @@ export default function Agenda() {
     }
   }, [isConnected, entities, events]);
 
-  // Event management
-  const addEvent = useCallback((event: Partial<AgendaEvent>) => {
-    const now = new Date().toISOString();
-    const newEventItem: AgendaEvent = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: event.title || 'Untitled Event',
-      description: event.description,
-      date: event.date || new Date().toISOString().split('T')[0],
-      time: event.time || '12:00',
-      endTime: event.endTime,
-      source: 'local',
-      location: event.location,
-      isRecurring: event.isRecurring || false,
-      recurrenceRule: event.recurrenceRule,
-      reminders: event.reminders || [calendarSettings.defaultReminderMinutes],
-      color: event.color,
-      createdAt: now,
-      updatedAt: now
-    };
-    
-    setEvents(prev => [...prev, newEventItem]);
-    toast.success("Event added successfully");
-    setIsAddEventOpen(false);
-    setNewEvent({});
-  }, [calendarSettings.defaultReminderMinutes]);
+  // Connect Google Calendar
+  const connectGoogleCalendar = useCallback(async () => {
+    if (!session?.user) {
+      toast.error('Please log in first');
+      return;
+    }
 
-  // Todo management
-  const addTodo = useCallback((todo: Partial<TodoItem>) => {
-    const now = new Date().toISOString();
-    const newTodoItem: TodoItem = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: todo.title || 'Untitled Task',
-      description: todo.description,
-      priority: todo.priority || 'medium',
-      completed: false,
-      dueDate: todo.dueDate,
-      dueTime: todo.dueTime,
-      tags: todo.tags || [],
-      category: todo.category,
-      relatedEntity: todo.relatedEntity,
-      estimatedMinutes: todo.estimatedMinutes,
-      createdAt: now,
-      updatedAt: now
-    };
-    
-    setTodos(prev => [...prev, newTodoItem]);
-    toast.success("Todo added successfully");
-    setIsAddTodoOpen(false);
-    setNewTodo({});
-  }, []);
+    if (isGoogleConnected) {
+      toast.warning('Google Calendar already connected');
+      return;
+    }
 
-  const toggleTodo = useCallback((id: string) => {
-    setTodos(prev => prev.map(todo => {
-      if (todo.id === id) {
-        const completed = !todo.completed;
-        return {
-          ...todo,
-          completed,
-          completedAt: completed ? new Date().toISOString() : undefined,
-          updatedAt: new Date().toISOString()
-        };
+    try {
+      setGoogleSyncLoading(true);
+      const response = await fetch('/api/google/calendar/connect', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('bearer_token')}`
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Connection failed');
       }
-      return todo;
-    }));
-  }, []);
 
-  // Reminder management
-  const addReminder = useCallback((reminder: Partial<Reminder>) => {
-    const now = new Date().toISOString();
-    const newReminderItem: Reminder = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: reminder.title || 'Untitled Reminder',
-      description: reminder.description,
-      time: reminder.time || '12:00',
-      date: reminder.date || new Date().toISOString().split('T')[0],
-      linkedTo: reminder.linkedTo,
-      type: reminder.type || 'general',
-      isRecurring: reminder.isRecurring || false,
-      recurrenceRule: reminder.recurrenceRule,
-      isActive: true,
-      createdAt: now,
-      updatedAt: now
-    };
+      const { authUrl, success } = await response.json();
+      
+      if (!success || !authUrl) {
+        throw new Error('Failed to generate auth URL');
+      }
+
+      // Open OAuth in popup for better UX
+      const popup = window.open(
+        authUrl, 
+        'google-oauth', 
+        'width=500,height=600,scrollbars=yes,resizable=yes,menubar=no'
+      );
+
+      if (!popup) {
+        // Fallback to new tab if popup blocked
+        window.open(authUrl, '_blank');
+        toast.warning('Popup blocked - opening in new tab. Complete authorization then return here.');
+      }
+
+      // Listen for connection success (poll status every 2s for 60s)
+      const checkConnection = async () => {
+        const interval = setInterval(async () => {
+          const statusResponse = await fetch('/api/google/calendar/status', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('bearer_token')}` }
+          });
+          
+          if (statusResponse.ok) {
+            const status = await statusResponse.json();
+            if (status.connected) {
+              clearInterval(interval);
+              setIsGoogleConnected(true);
+              toast.success('Google Calendar connected! Syncing events...');
+              await syncWithGoogleCalendar(); // Auto-sync on connect
+            }
+          }
+        }, 2000);
+
+        // Stop checking after 60s
+        setTimeout(() => clearInterval(interval), 60000);
+      };
+
+      checkConnection();
+    } catch (error) {
+      console.error('Connect error:', error);
+      toast.error(`Failed to connect Google Calendar: ${error.message}`);
+    } finally {
+      setGoogleSyncLoading(false);
+    }
+  }, [session, isGoogleConnected]);
+
+  // Disconnect Google Calendar
+  const disconnectGoogleCalendar = useCallback(async () => {
+    if (!session?.user || !isGoogleConnected) return;
+
+    try {
+      setGoogleSyncLoading(true);
+      const response = await fetch('/api/google/calendar/disconnect', {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('bearer_token')}` }
+      });
+
+      if (response.ok) {
+        setIsGoogleConnected(false);
+        // Remove Google events from state
+        setEvents(prev => prev.filter(e => e.source !== 'google'));
+        toast.success('Google Calendar disconnected successfully');
+      } else {
+        const data = await response.json();
+        throw new Error(data.error || 'Disconnect failed');
+      }
+    } catch (error) {
+      console.error('Disconnect error:', error);
+      toast.error(`Failed to disconnect: ${error.message}`);
+    } finally {
+      setGoogleSyncLoading(false);
+    }
+  }, [session, isGoogleConnected]);
+
+  // Check if Google Calendar is connected
+  const checkGoogleConnection = useCallback(async () => {
+    if (!session?.user) return;
     
-    setReminders(prev => [...prev, newReminderItem]);
-    toast.success("Reminder added successfully");
-    setIsAddReminderOpen(false);
-    setNewReminder({});
-  }, []);
+    try {
+      const response = await fetch('/api/google/calendar/status', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('bearer_token')}` }
+      });
+      
+      if (response.ok) {
+        const status = await response.json();
+        setIsGoogleConnected(status.connected);
+        
+        if (status.needsRefresh && status.connected) {
+          toast.warning('Google token expiring soon - refreshing...');
+          // Auto-refresh if needed
+          await fetch('/api/google/calendar/refresh', {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('bearer_token')}` }
+          });
+        }
+      } else if (response.status === 401) {
+        setIsGoogleConnected(false);
+      }
+    } catch (error) {
+      console.error('Connection check error:', error);
+      setIsGoogleConnected(false);
+    }
+  }, [session]);
 
-  // Delete functions
-  const deleteEvent = useCallback((id: string) => {
-    setEvents(prev => prev.filter(e => e.id !== id));
-    toast.success("Event deleted");
-  }, []);
+  // Sync with Google Calendar
+  const syncWithGoogleCalendar = useCallback(async () => {
+    if (!session?.user || !isGoogleConnected) {
+      toast.error('Please connect Google Calendar first');
+      return;
+    }
 
-  const deleteTodo = useCallback((id: string) => {
-    setTodos(prev => prev.filter(t => t.id !== id));
-    toast.success("Todo deleted");
-  }, []);
+    if (googleSyncLoading) return; // Prevent duplicate syncs
 
-  const deleteReminder = useCallback((id: string) => {
-    setReminders(prev => prev.filter(r => r.id !== id));
-    toast.success("Reminder deleted");
-  }, []);
+    setGoogleSyncLoading(true);
+    try {
+      const { searchParams } = new URL(window.location.href);
+      const period = searchParams.get('period') || 'week';
+      
+      const response = await fetch(`/api/google/calendar/events?period=${period}&maxResults=50`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('bearer_token')}` }
+      });
 
-  // Save data when it changes
-  useEffect(() => {
-    saveLocalData();
-  }, [events, todos, reminders, saveLocalData]);
+      if (!response.ok) {
+        const data = await response.json();
+        if (data.code === 'NOT_CONNECTED') {
+          setIsGoogleConnected(false);
+          toast.error('Google Calendar disconnected - please reconnect');
+        } else if (data.code === 'REFRESH_FAILED' || data.code === 'TOKEN_EXPIRED') {
+          toast.error('Google token expired - reconnecting...');
+          setIsGoogleConnected(false);
+          await connectGoogleCalendar(); // Attempt reconnect
+        } else {
+          throw new Error(data.error || 'Sync failed');
+        }
+        return;
+      }
 
-  // Filter and search functions
+      const { events: googleEvents, count, period: fetchedPeriod } = await response.json();
+      
+      // Map to AgendaEvent format (filter for selected date or upcoming)
+      const selectedDateStr = selectedDate.toISOString().split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
+      
+      const mappedEvents: AgendaEvent[] = googleEvents
+        .filter((event: any) => {
+          const eventDate = event.start_date;
+          // Show today's or upcoming events within the period
+          if (period === 'today') return eventDate === todayStr;
+          return new Date(eventDate) >= new Date(selectedDateStr) && 
+                 new Date(eventDate) <= new Date(new Date(selectedDateStr).getTime() + 7 * 24 * 60 * 60 * 1000);
+        })
+        .map((event: any) => ({
+          id: `google_${event.id}`,
+          title: event.title || 'Untitled Event',
+          description: event.description,
+          date: event.start_date,
+          time: event.all_day ? 'All Day' : (event.start_time || 'TBD'),
+          endTime: event.all_day || !event.end_time ? undefined : event.end_time,
+          source: 'google' as const,
+          location: event.location,
+          color: '#4285f4', // Google blue
+          reminders: [15, 60], // Default Google reminders
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
+
+      // Merge: replace old Google events, keep others, sort by time
+      const existingNonGoogle = events.filter(e => e.source !== 'google');
+      const mergedEvents = [...existingNonGoogle, ...mappedEvents]
+        .sort((a, b) => {
+          if (a.time === 'All Day' && b.time !== 'All Day') return -1;
+          if (a.time !== 'All Day' && b.time === 'All Day') return 1;
+          return (a.time || '00:00').localeCompare(b.time || '00:00');
+        });
+
+      setEvents(mergedEvents);
+      
+      toast.success(`Synced ${mappedEvents.length} Google events for ${fetchedPeriod}`);
+      setLastSyncTime(new Date());
+    } catch (error) {
+      console.error('Google sync error:', error);
+      toast.error(`Google sync failed: ${error.message}`);
+      if (error.message.includes('expired') || error.message.includes('refresh')) {
+        setIsGoogleConnected(false);
+      }
+    } finally {
+      setGoogleSyncLoading(false);
+    }
+  }, [session, isGoogleConnected, googleSyncLoading, selectedDate, events]);
+
+  // Add this new function after checkGoogleConnection
+  const testGoogleConnectionAndPreview = useCallback(async () => {
+    if (!session?.user || !isGoogleConnected) {
+      toast.error('Please connect Google Calendar first');
+      return;
+    }
+
+    if (googleSyncLoading) return;
+
+    setGoogleSyncLoading(true);
+    try {
+      // Fetch recent events for preview
+      const response = await fetch('/api/google/calendar/test-connection', {
+        headers: { 
+          'Authorization': `Bearer ${localStorage.getItem('bearer_token')}`,
+          'Content-Type': 'application/json'
+        },
+        method: 'POST',
+        body: JSON.stringify({ maxResults: 5 }) // Limit to 5 for preview
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Test failed');
+      }
+
+      const { events: previewEvents, success, message } = await response.json();
+      
+      if (success && previewEvents && previewEvents.length > 0) {
+        // Show preview dialog with real events
+        const eventPreviews = previewEvents.map((event: any) => (
+          <div key={event.id} className="border-b pb-2 last:border-b-0">
+            <div className="font-medium text-sm">{event.summary || 'Untitled Event'}</div>
+            <div className="text-xs text-muted-foreground">
+              {event.start?.dateTime ? new Date(event.start.dateTime).toLocaleString() : 'All Day'}
+              {event.location && ` • ${event.location}`}
+            </div>
+            {event.description && <p className="text-xs mt-1">{event.description}</p>}
+          </div>
+        ));
+
+        // Use a simple toast or dialog - here using toast for brevity, but can enhance to dialog
+        toast.success(
+          <div>
+            <strong>Connection successful!</strong>
+            <div className="mt-1 text-sm max-h-40 overflow-y-auto">
+              {eventPreviews}
+            </div>
+            <p className="text-xs mt-2 text-green-700">Preview of your upcoming events. Full sync in progress...</p>
+          </div>,
+          { duration: 8000 }
+        );
+
+        // Auto-sync full events after successful test
+        await syncWithGoogleCalendar();
+      } else {
+        toast.info(
+          <div>
+            <strong>{message || 'Connected, but no events found'}</strong>
+            <p className="text-xs mt-1">Add some events to your Google Calendar to see them here.</p>
+          </div>
+        );
+      }
+    } catch (error) {
+      console.error('Test connection error:', error);
+      toast.error(`Test failed: ${error.message}. Check console for details or reconnect.`);
+      if (error.message.includes('expired') || error.message.includes('invalid')) {
+        setIsGoogleConnected(false);
+      }
+    } finally {
+      setGoogleSyncLoading(false);
+    }
+  }, [session, isGoogleConnected, googleSyncLoading, syncWithGoogleCalendar]);
+
+  // Update filteredEvents to include Google source in filter
   const filteredEvents = events.filter(event => {
     const matchesSearch = !searchQuery || 
       event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -426,7 +626,8 @@ export default function Agenda() {
 
   // Combine events and holidays for display
   const combinedEvents = [
-    ...filteredEvents,
+    ...filteredEvents.map(e => ({ ...e, source: e.source || 'local' })), // Ensure source exists
+    ...(isGoogleConnected ? mappedEvents : []), // Add synced Google events
     ...dayHolidays.map(holiday => ({
       id: holiday.id,
       title: holiday.name,
@@ -434,7 +635,6 @@ export default function Agenda() {
       date: holiday.date,
       time: 'All Day',
       source: 'holiday' as const,
-      isRecurring: holiday.isRecurring,
       color: holiday.color,
       category: holiday.category,
       type: holiday.type,
@@ -513,6 +713,35 @@ export default function Agenda() {
       default: return <Bell className="h-4 w-4" />;
     }
   };
+
+  // Sync all sources
+  const syncAll = useCallback(async () => {
+    if (isConnected) {
+      await syncWithHomeAssistant();
+    }
+    if (isGoogleConnected) {
+      await syncWithGoogleCalendar();
+    }
+  }, [isConnected, syncWithHomeAssistant, isGoogleConnected, syncWithGoogleCalendar]);
+
+  // Load Google connection status
+  useEffect(() => {
+    if (searchParams.get('connected') === 'true') {
+      toast.success('Google Calendar connected successfully!');
+      // Clear the param
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (sessionLoading) return;
+    if (!session?.user) {
+      // Redirect to login if not authenticated (assuming protected route)
+      window.location.href = '/login';
+      return;
+    }
+    checkGoogleConnection();
+  }, [session, sessionLoading, checkGoogleConnection]);
 
   return (
     <div className="flex flex-col space-y-6">
@@ -639,6 +868,80 @@ export default function Agenda() {
                     </div>
                   </div>
                 </div>
+                
+                <Separator />
+                
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium">Google Calendar Integration</h4>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-sm">Google Calendar Sync</Label>
+                      <p className="text-xs text-muted-foreground mt-1">Connect your Google account to sync calendar events</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isGoogleConnected ? (
+                        <Badge variant="default" className="text-xs">Connected</Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">Disconnected</Badge>
+                      )}
+                      <Button 
+                        size="sm" 
+                        variant={isGoogleConnected ? "destructive" : "default"}
+                        onClick={isGoogleConnected ? disconnectGoogleCalendar : connectGoogleCalendar}
+                        disabled={sessionLoading || !session?.user || (isGoogleConnected && googleSyncLoading)}
+                      >
+                        {googleSyncLoading ? (
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        ) : isGoogleConnected ? (
+                          <>
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Disconnect
+                          </>
+                        ) : (
+                          <>
+                            <CalendarPlus className="h-4 w-4 mr-2" />
+                            Connect
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {isGoogleConnected && (
+                    <>
+                      <Separator />
+                      <div className="space-y-3">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={testGoogleConnectionAndPreview}
+                          disabled={googleSyncLoading}
+                          className="w-full justify-start"
+                        >
+                          <RefreshCw className={`h-4 w-4 mr-2 ${googleSyncLoading ? 'animate-spin' : ''}`} />
+                          Test Connection & Preview Events
+                        </Button>
+                        <p className="text-xs text-muted-foreground">Fetches your real upcoming events to confirm connection</p>
+                      </div>
+                      
+                      <div className="pl-4 border-l-2 border-primary/20">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm">Auto-sync Google Events</Label>
+                          <Switch
+                            checked={calendarSettings.enabledSources.includes('google')}
+                            onCheckedChange={(checked) => {
+                              const updated = checked 
+                                ? [...calendarSettings.enabledSources, 'google']
+                                : calendarSettings.enabledSources.filter(s => s !== 'google');
+                              saveSettings({ ...calendarSettings, enabledSources: updated });
+                            }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">Events will sync automatically every {calendarSettings.syncInterval} minutes</p>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
               <DialogFooter>
                 <Button onClick={() => setIsSettingsOpen(false)}>Close</Button>
@@ -649,11 +952,11 @@ export default function Agenda() {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={syncWithHomeAssistant}
-            disabled={isSyncing || !isConnected}
+            onClick={syncAll}
+            disabled={isSyncing || googleSyncLoading || !isConnected && !isGoogleConnected}
           >
-            <CalendarSync className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
-            Sync
+            <CalendarSync className={`h-4 w-4 mr-2 ${isSyncing || googleSyncLoading ? 'animate-spin' : ''}`} />
+            Sync All
           </Button>
           
           <Dialog open={isAddEventOpen} onOpenChange={setIsAddEventOpen}>
@@ -825,14 +1128,17 @@ export default function Agenda() {
                             <Badge 
                               variant="outline" 
                               className={`text-xs ${
-                                event.source === 'holiday' 
-                                  ? event.type === 'federal' 
-                                    ? 'bg-red-50 text-red-700 border-red-200' 
-                                    : 'bg-blue-50 text-blue-700 border-blue-200'
-                                  : ''
+                                event.source === 'google' 
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                                  : event.source === 'holiday' 
+                                    ? event.type === 'federal' 
+                                      ? 'bg-red-50 text-red-700 border-red-200' 
+                                      : 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : ''
                               }`}
                             >
-                              {event.source === "local" ? "Local" : 
+                              {event.source === "google" ? "Google" :
+                               event.source === "local" ? "Local" : 
                                event.source === "holiday" ? 
                                  event.type === 'federal' ? 'Federal Holiday' :
                                  event.type === 'observance' ? 'Observance' :
