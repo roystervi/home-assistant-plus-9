@@ -6,5 +6,5 @@ export default function middleware(req) {
 
 export const config = {
   runtime: "nodejs",
-  matcher: ["/settings", "/energy", "/automations", "/thermostat", "/sprinkler", "/cameras", "/media", "/assistant", "/agenda", "/medications", "/alarm", "/system", "/crypto"], // Apply middleware to specific routes
+  matcher: ["/settings", "/dashboard", "/energy", "/automations", "/thermostat", "/sprinkler", "/cameras", "/media", "/assistant", "/medications", "/alarm", "/system", "/crypto"], // Apply middleware to specific routes
 };

@@ -806,14 +806,11 @@ export default function Agenda() {
     }
   }, [searchParams]);
 
+  // Check Google connection only if authenticated
   useEffect(() => {
-    if (sessionLoading) return;
-    if (!session?.user) {
-      // Redirect to login if not authenticated (assuming protected route)
-      window.location.href = '/login';
-      return;
+    if (session?.user && !sessionLoading) {
+      checkGoogleConnection();
     }
-    checkGoogleConnection();
   }, [session, sessionLoading, checkGoogleConnection]);
 
   return (
