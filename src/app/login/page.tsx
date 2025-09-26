@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,26 +24,48 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    const { data, error } = await authClient.signIn.email({
-      email: formData.email,
-      password: formData.password,
-      rememberMe: formData.rememberMe,
-      callbackURL,
-    });
+    try {
+      const response = await fetch('/api/auth/sign-in/email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
 
-    if (error?.code) {
-      const errorMap = {
-        INVALID_EMAIL_OR_PASSWORD: 'Invalid email or password. Please make sure you have already registered an account and try again.',
-      };
-      toast.error(errorMap[error.code] || 'Login failed');
+      if (!response.ok) {
+        let errorData = {};
+        try {
+          errorData = await response.json();
+        } catch {}
+        const errorCode = errorData.error?.code || errorData.code || '';
+        const errorMap = {
+          'INVALID_EMAIL_OR_PASSWORD': 'Invalid email or password. Please make sure you have already registered an account and try again.',
+          'USER_NOT_FOUND': 'Invalid email or password. Please make sure you have already registered an account and try again.',
+        };
+        toast.error(errorMap[errorCode] || 'Login failed. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+
+      const data = await response.json();
+      const authToken = response.headers.get('set-auth-token');
+      if (authToken) {
+        localStorage.setItem('bearer_token', authToken);
+      }
+
       setIsLoading(false);
-      return;
+      toast.success('Logged in successfully!');
+      router.push(callbackURL);
+    } catch (error) {
+      console.error('Login error:', error);
+      toast.error('Failed to connect. Please check your connection and try again.');
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
-
-    toast.success('Logged in successfully!');
-    router.push(callbackURL);
   };
 
   const registered = searchParams.get('registered') === 'true';
