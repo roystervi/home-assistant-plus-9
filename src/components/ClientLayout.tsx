@@ -93,6 +93,7 @@ export default function ClientLayout({ currentPage, children }: ClientLayoutProp
     { id: "3", text: "Energy usage 15% below average today", type: "info" },
   ]);
   const [serverTime, setServerTime] = useState<Date>(new Date());
+  const [globalSettings, setGlobalSettings] = useState(null);
 
   // Move fetchWeather inside component
   const fetchServerTime = useCallback(async () => {
@@ -113,15 +114,37 @@ export default function ClientLayout({ currentPage, children }: ClientLayoutProp
     return () => clearInterval(interval);
   }, [fetchServerTime]);
 
+  // Load global settings
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await fetch('/api/global-settings');
+        if (res.ok) {
+          const { settings } = await res.json();
+          setGlobalSettings(settings);
+        }
+      } catch (e) {
+        console.error('Failed to load global settings:', e);
+      }
+    };
+
+    loadSettings();
+
+    // Poll for settings updates every 5 minutes
+    const interval = setInterval(loadSettings, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const fetchWeather = useCallback(async () => {
     setWeatherError(false);
-    setWeather(null); // Start with null to show loading/offline
+    setWeather(null);
     
-    const settings = weatherApiSettings.get();
+    if (!globalSettings) return; // Still loading settings
+
+    const settings = globalSettings.weather || {};
     
     if (!settings.apiKey || !settings.provider || settings.location.lat === 0 || settings.provider === "ha_integration" || !settings.isConfigured) {
-      // No config: stay null, will show "Offline" in UI
-      setWeatherError(true); // Treat unconfigured as error/offline
+      setWeatherError(true);
       return;
     }
 
@@ -132,18 +155,20 @@ export default function ClientLayout({ currentPage, children }: ClientLayoutProp
       let sunriseTime = "";
       let sunsetTime = "";
 
+      const units = settings.units || "imperial";
+
       switch (settings.provider) {
         case "openweathermap":
-          url = `https://api.openweathermap.org/data/2.5/weather?lat=${settings.location.lat}&lon=${settings.location.lon}&appid=${settings.apiKey}&units=imperial`; // Force imperial
+          url = `https://api.openweathermap.org/data/2.5/weather?lat=${settings.location.lat}&lon=${settings.location.lon}&appid=${settings.apiKey}&units=${units}`;
           break;
         case "weatherapi":
-          url = `https://api.weatherapi.com/v1/current.json?key=${settings.apiKey}&q=${settings.location.lat},${settings.location.lon}`; // Always F available
+          url = `https://api.weatherapi.com/v1/current.json?key=${settings.apiKey}&q=${settings.location.lat},${settings.location.lon}`;
           break;
         case "accuweather":
           if (!settings.location.locationKey) {
             throw new Error("Location key required for AccuWeather");
           }
-          url = `https://dataservice.accuweather.com/currentconditions/v1/${settings.location.locationKey}?apikey=${settings.apiKey}&details=true`; // Always Imperial
+          url = `https://dataservice.accuweather.com/currentconditions/v1/${settings.location.locationKey}?apikey=${settings.apiKey}&details=true`;
           break;
         default:
           throw new Error("Unsupported weather provider");
@@ -159,7 +184,7 @@ export default function ClientLayout({ currentPage, children }: ClientLayoutProp
       // Parse based on provider
       switch (settings.provider) {
         case "openweathermap":
-          temp = Math.round(data.main.temp); // Now imperial/F
+          temp = Math.round(data.main.temp);
           condition = data.weather[0].description;
           const sunriseDate = new Date(data.sys.sunrise * 1000);
           const sunsetDate = new Date(data.sys.sunset * 1000);
@@ -167,21 +192,25 @@ export default function ClientLayout({ currentPage, children }: ClientLayoutProp
           sunsetTime = sunsetDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
           break;
         case "weatherapi":
-          temp = Math.round(data.current.temp_f); // Force F
+          if (units === "metric") {
+            temp = Math.round(data.current.temp_c);
+          } else {
+            temp = Math.round(data.current.temp_f);
+          }
           condition = data.current.condition.text;
-          sunriseTime = "6:42 AM"; // Placeholder - no sunrise/sunset in current endpoint
+          sunriseTime = "6:42 AM"; // Placeholder
           sunsetTime = "7:18 PM"; // Placeholder
           break;
         case "accuweather":
+          const unit = units === "metric" ? "Metric" : "Imperial";
           const accuData = Array.isArray(data) ? data[0] : data;
-          temp = Math.round(accuData.Temperature.Imperial.Value); // F
+          temp = Math.round(accuData.Temperature[unit].Value);
           condition = accuData.WeatherText;
-          sunriseTime = "6:42 AM"; // Would need separate astronomy call
-          sunsetTime = "7:18 PM";
+          sunriseTime = "6:42 AM"; // Placeholder
+          sunsetTime = "7:18 PM"; // Placeholder
           break;
       }
 
-      // On success, set real data (no mock fallback)
       setWeather({
         temperature: temp,
         condition,
@@ -192,15 +221,16 @@ export default function ClientLayout({ currentPage, children }: ClientLayoutProp
     } catch (error) {
       console.error("Weather fetch failed:", error);
       setWeatherError(true);
-      setWeather(null); // No fallback - stay null on error
-      // No toast here to avoid spam
+      setWeather(null);
     }
-  }, []); // No dependencies - settings are fetched inside
+  }, [globalSettings]);
 
-  // Fetch weather on mount and every 10 minutes
+  // Fetch weather when settings are loaded and every 10 minutes
   useEffect(() => {
+    if (!globalSettings) return;
+    
     fetchWeather();
-    const interval = setInterval(fetchWeather, 10 * 60 * 1000); // Every 10 min
+    const interval = setInterval(fetchWeather, 10 * 60 * 1000);
     return () => clearInterval(interval);
   }, [fetchWeather]);
 
@@ -421,7 +451,7 @@ export default function ClientLayout({ currentPage, children }: ClientLayoutProp
             <div className="flex items-center gap-2">
               {weather ? (
                 <>
-                  <span>{weather.temperature}°</span>
+                  <span>{weather.temperature}°{globalSettings?.weather?.units === 'metric' ? 'C' : 'F'}</span>
                   <span className="text-muted-foreground text-xs capitalize">{weather.condition}</span>
                 </>
               ) : weatherError ? (
