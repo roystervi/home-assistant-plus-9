@@ -69,6 +69,13 @@ interface WeatherLocation {
   locationKey?: string;
 }
 
+interface FetchedWeather {
+  temperature: number;
+  condition: string;
+  feelsLike?: number;
+  humidity?: number;
+}
+
 interface GoogleOAuthState {
   clientId: string;
   clientSecret: string;
@@ -125,6 +132,7 @@ export default function SettingsPage() {
     zip: "", 
     locationKey: "" 
   });
+  const [fetchedWeather, setFetchedWeather] = useState<FetchedWeather | null>(null);
   const [weatherUnits, setWeatherUnits] = useState("imperial");
   const [energyProvider, setEnergyProvider] = useState("manual");
   const [costPerKwh, setCostPerKwh] = useState(0.12);
@@ -801,10 +809,12 @@ export default function SettingsPage() {
   const testWeatherApi = useCallback(async () => {
     if (!weatherApiKey || weatherLocation.lat === 0) {
       toast.error('Configure API key and location first');
+      setFetchedWeather(null);
       return;
     }
 
     setConnectionStatus(prev => ({ ...prev, weather: 'testing' }));
+    setFetchedWeather(null);
 
     try {
       let url = '';
@@ -826,16 +836,54 @@ export default function SettingsPage() {
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
+        let temp = 0;
+        let condition = '';
+        let feelsLike = 0;
+        let humidity = 0;
+
+        // Parse based on provider
+        switch (weatherProvider) {
+          case 'openweathermap':
+            temp = Math.round(data.main.temp);
+            condition = data.weather[0].description;
+            feelsLike = Math.round(data.main.feels_like);
+            humidity = data.main.humidity;
+            break;
+          case 'weatherapi':
+            temp = Math.round(weatherUnits === 'imperial' ? data.current.temp_f : data.current.temp_c);
+            condition = data.current.condition.text;
+            feelsLike = Math.round(weatherUnits === 'imperial' ? data.current.feelslike_f : data.current.feelslike_c);
+            humidity = data.current.humidity;
+            break;
+          case 'accuweather':
+            const accuData = Array.isArray(data) ? data[0] : data;
+            temp = Math.round(accuData.Temperature[weatherUnits === 'imperial' ? 'Imperial' : 'Metric'].Value);
+            condition = accuData.WeatherText;
+            feelsLike = Math.round(accuData.RealFeelTemperature[weatherUnits === 'imperial' ? 'Imperial' : 'Metric'].Value);
+            humidity = accuData.RelativeHumidity;
+            break;
+        }
+
+        setFetchedWeather({ temperature: temp, condition, feelsLike, humidity });
         setConnectionStatus(prev => ({ ...prev, weather: 'configured' }));
         toast.success('Weather API test successful!');
       } else {
         throw new Error(`HTTP ${response.status}`);
       }
     } catch (error) {
+      setFetchedWeather(null);
       setConnectionStatus(prev => ({ ...prev, weather: 'not_configured' }));
       toast.error(`Weather API test failed: ${error.message}`);
     }
   }, [weatherApiKey, weatherLocation, weatherProvider, weatherUnits]);
+
+  // Auto-fetch weather preview when weather tab is active and configured
+  useEffect(() => {
+    if (activeTab === 'weather' && weatherProvider !== 'ha_integration' && weatherApiKey && weatherLocation.lat !== 0 && !fetchedWeather) {
+      const timer = setTimeout(() => testWeatherApi(), 500); // Slight delay to ensure tab is ready
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab, weatherProvider, weatherApiKey, weatherLocation, testWeatherApi, fetchedWeather]);
 
   const testEnergyConnection = useCallback(async () => {
     if (energyProvider === 'manual') {
@@ -1354,6 +1402,8 @@ export default function SettingsPage() {
 
                             setWeatherLocation(newLocation);
                             toast.success(`Location detected: ${newLocation.city || latitude.toFixed(4)}, ${newLocation.country || longitude.toFixed(4)}`);
+                            // Fetch weather after location update
+                            setTimeout(() => testWeatherApi(), 1000);
                           },
                           (error) => {
                             toast.error(`Location detection failed: ${error.message}`);
@@ -1378,21 +1428,7 @@ export default function SettingsPage() {
               </div>
 
               <Button 
-                onClick={() => {
-                  if (weatherProvider !== 'ha_integration' && !weatherApiKey) {
-                    toast.error('Please enter weather API key');
-                    return;
-                  }
-                  if (weatherProvider === 'ha_integration' && (!haUrl || !haToken)) {
-                    toast.error('Home Assistant connection required for HA weather integration');
-                    return;
-                  }
-                  if (weatherProvider !== 'ha_integration' && (!weatherLocation.lat || !weatherLocation.lon)) {
-                    toast.error('Please set your location coordinates first');
-                    return;
-                  }
-                  testWeatherApi();
-                }}
+                onClick={testWeatherApi}
                 disabled={connectionStatus.weather === 'testing' || (weatherProvider !== 'ha_integration' && !weatherApiKey) || (weatherProvider !== 'ha_integration' && !weatherLocation.lat)}
                 className='w-full'
               >
@@ -1423,6 +1459,31 @@ export default function SettingsPage() {
                     Coordinates: {weatherLocation.lat.toFixed(4)}, {weatherLocation.lon.toFixed(4)}
                   </p>
                 </div>
+              )}
+
+              {/* Weather Preview */}
+              {fetchedWeather && (
+                <Card className='bg-green-50 border-green-200'>
+                  <CardHeader className='pb-2'>
+                    <CardTitle className='text-sm font-medium text-green-800 flex items-center gap-2'>
+                      <CheckCircle className='h-4 w-4' />
+                      Current Weather Preview
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className='space-y-2'>
+                    <div className='text-2xl font-bold text-green-900'>
+                      {fetchedWeather.temperature}°{weatherUnits === 'imperial' ? 'F' : 'C'}
+                    </div>
+                    <p className='text-sm capitalize text-green-800'>{fetchedWeather.condition}</p>
+                    {fetchedWeather.feelsLike && (
+                      <p className='text-xs text-green-700'>Feels like: {fetchedWeather.feelsLike}°</p>
+                    )}
+                    {fetchedWeather.humidity && (
+                      <p className='text-xs text-green-700'>Humidity: {fetchedWeather.humidity}%</p>
+                    )}
+                    <p className='text-xs text-muted-foreground'>Last updated: {new Date().toLocaleTimeString()}</p>
+                  </CardContent>
+                </Card>
               )}
 
               {weatherProvider !== 'ha_integration' && (
@@ -1514,6 +1575,8 @@ export default function SettingsPage() {
 
                           setWeatherLocation(newLocation);
                           toast.success(`Location set via ZIP: ${city}, ${countryCode}`);
+                          // Fetch weather after ZIP lookup
+                          setTimeout(() => testWeatherApi(), 1000);
                         } catch (error) {
                           toast.error(`ZIP lookup failed: ${error.message}`);
                         } finally {
