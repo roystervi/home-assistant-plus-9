@@ -41,9 +41,10 @@ export default function LoginPage() {
       return;
     }
 
+    setIsLoading(false);
+
     toast.success('Logged in successfully!');
     router.push(callbackURL);
-    router.refresh(); // Refresh to update session
   };
 
   const registered = searchParams.get('registered') === 'true';
