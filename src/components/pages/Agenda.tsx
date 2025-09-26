@@ -822,6 +822,7 @@ export default function Agenda() {
 
   return (
     <div className="flex flex-col space-y-6">
+      <h1 className="text-3xl font-bold mb-4">Full Agenda Loaded</h1>
       <Toaster />
       
       {/* Header */}
