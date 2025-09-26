@@ -39,6 +39,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useHomeAssistant } from "@/hooks/useHomeAssistant";
 
 // Interfaces for type safety
 interface ConnectionStatus {
@@ -171,6 +172,35 @@ export default function SettingsPage() {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [saveTimeout, setSaveTimeout] = useState<NodeJS.Timeout | null>(null);
+
+  const haHook = useHomeAssistant({
+    baseUrl: haUrl || '',
+    accessToken: haToken || null,
+    autoFetch: false // Manual fetch for debug
+  });
+
+  // Compute debug data from hook
+  const entitiesCount = Object.keys(haHook.entities).length;
+  const sampleEntities = Object.values(haHook.entities).slice(0, 5);
+  const debugData = {
+    isConnected: haHook.isConnected,
+    error: haHook.error,
+    entitiesCount,
+    lastSync: haHook.lastSync,
+    syncingData: haHook.syncingData,
+    loading: haHook.loading,
+    haVersion: 'N/A', // Can fetch separately if needed
+    sampleEntities
+  };
+
+  // Safe URL hostname getter
+  const getHostname = (url: string): string => {
+    try {
+      return new URL(url || 'http://localhost:8123').hostname;
+    } catch {
+      return 'localhost';
+    }
+  };
 
   // Load from storage on mount
   useEffect(() => {
@@ -1333,7 +1363,7 @@ export default function SettingsPage() {
                     </div>
 
                     {/* Debug Output */}
-                    {debugData && (
+                    {true && ( // Always show for debug
                       <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
                         <div className="flex items-center justify-between">
                           <span className="font-medium">Connection: {debugData.isConnected ? "✅ Connected" : "❌ Disconnected"}</span>
@@ -1345,14 +1375,14 @@ export default function SettingsPage() {
                           <div className="bg-destructive/10 text-destructive p-2 rounded text-sm">
                             <strong>Error:</strong> {debugData.error}
                             <br />
-                            <small>Check: Token valid? CORS enabled? HA running on {new URL(haUrl).hostname}?</small>
+                            <small>Check: Token valid? CORS enabled? HA running on {getHostname(haUrl)}?</small>
                           </div>
                         )}
                         <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>Entities Fetched: {debugData.entitiesCount || 0}</div>
+                          <div>Entities Fetched: {debugData.entitiesCount}</div>
                           <div>Last Sync: {debugData.lastSync ? new Date(debugData.lastSync).toLocaleString() : "Never"}</div>
                           <div>State: {debugData.loading ? "Loading..." : debugData.syncingData ? "Syncing..." : "Idle"}</div>
-                          {debugData.isConnected && <div>Version: {debugData.haVersion || "N/A"}</div>}
+                          {debugData.isConnected && <div>Version: {debugData.haVersion}</div>}
                         </div>
 
                         {/* Sample Entities */}
@@ -1380,12 +1410,22 @@ export default function SettingsPage() {
 
                     <div className="flex gap-2 pt-2 border-t">
                       <Button 
-                        onClick={() => { /* Fetch sample data using hook */ }} 
-                        disabled={!haUrl || !haToken}
+                        onClick={haHook.fetchEntities} 
+                        disabled={!haUrl || !haToken || haHook.loading}
                         variant="outline"
                         size="sm"
                       >
-                        Fetch Sample Data
+                        {haHook.loading ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Fetching...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Fetch Sample Data
+                          </>
+                        )}
                       </Button>
                       <Button 
                         onClick={() => { /* Clear debug - remove panel */ }} 
@@ -1401,7 +1441,7 @@ export default function SettingsPage() {
                       <ul className="mt-1 space-y-1 list-disc list-inside">
                         <li>Missing Token: Generate in HA &gt; Profile &gt; Tokens (long-lived, expires in 30 days)</li>
                         <li>CORS Error: Add your domain to HA config.yaml: http: cors_allowed_origins: ["*"] then restart HA</li>
-                        <li>Network: Ping {new URL(haUrl).hostname} from browser console; check firewall/port 8123</li>
+                        <li>Network: Ping {getHostname(haUrl)} from browser console; check firewall/port 8123</li>
                         <li>0 Entities: HA API working but no devices? Check HA logs for access issues</li>
                       </ul>
                     </div>
