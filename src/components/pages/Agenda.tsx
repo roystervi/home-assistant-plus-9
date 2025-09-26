@@ -289,6 +289,92 @@ export default function Agenda() {
     }
   }, [isConnected, entities, events]);
 
+  // Sync with Google Calendar
+  const syncWithGoogleCalendar = useCallback(async () => {
+    if (!session?.user || !isGoogleConnected) {
+      toast.error('Please connect Google Calendar first');
+      return;
+    }
+
+    if (googleSyncLoading) return; // Prevent duplicate syncs
+
+    setGoogleSyncLoading(true);
+    try {
+      const { searchParams } = new URL(window.location.href);
+      const period = searchParams.get('period') || 'week';
+      
+      const response = await fetch(`/api/google/calendar/events?period=${period}&maxResults=50`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('bearer_token')}` }
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        if (data.code === 'NOT_CONNECTED') {
+          setIsGoogleConnected(false);
+          toast.error('Google Calendar disconnected - please reconnect');
+        } else if (data.code === 'REFRESH_FAILED' || data.code === 'TOKEN_EXPIRED') {
+          toast.error('Google token expired. Please reconnect manually.');
+          setIsGoogleConnected(false);
+          // Do not auto-reconnect to avoid circular dependency
+        } else {
+          throw new Error(data.error || 'Sync failed');
+        }
+        return;
+      }
+
+      const { events: googleEvents, count, period: fetchedPeriod } = await response.json();
+      
+      // Map to AgendaEvent format (filter for selected date or upcoming)
+      const selectedDateStr = selectedDate.toISOString().split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
+      
+      const mappedEvents: AgendaEvent[] = googleEvents
+        .filter((event: any) => {
+          const eventDate = event.start_date;
+          // Show today's or upcoming events within the period
+          if (period === 'today') return eventDate === todayStr;
+          return new Date(eventDate) >= new Date(selectedDateStr) && 
+                 new Date(eventDate) <= new Date(new Date(selectedDateStr).getTime() + 7 * 24 * 60 * 60 * 1000);
+        })
+        .map((event: any) => ({
+          id: `google_${event.id}`,
+          title: event.title || 'Untitled Event',
+          description: event.description,
+          date: event.start_date,
+          time: event.all_day ? 'All Day' : (event.start_time || 'TBD'),
+          endTime: event.all_day || !event.end_time ? undefined : event.end_time,
+          source: 'google' as const,
+          location: event.location,
+          color: '#4285f4', // Google blue
+          reminders: [15, 60], // Default Google reminders
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
+
+      // Merge: replace old Google events, keep others, sort by time
+      const existingNonGoogle = events.filter(e => e.source !== 'google');
+      const mergedEvents = [...existingNonGoogle, ...mappedEvents]
+        .sort((a, b) => {
+          if (a.time === 'All Day' && b.time !== 'All Day') return -1;
+          if (a.time !== 'All Day' && b.time === 'All Day') return 1;
+          return (a.time || '00:00').localeCompare(b.time || '00:00');
+        });
+
+      setEvents(mergedEvents);
+      
+      toast.success(`Synced ${mappedEvents.length} Google events for ${fetchedPeriod}`);
+      setLastSyncTime(new Date());
+    } catch (error) {
+      console.error('Google sync error:', error);
+      toast.error(`Google sync failed: ${error.message}`);
+      if (error.message.includes('expired') || error.message.includes('refresh')) {
+        setIsGoogleConnected(false);
+      }
+    } finally {
+      setGoogleSyncLoading(false);
+    }
+  }, [session, isGoogleConnected, googleSyncLoading, selectedDate, events]);
+
   // Connect Google Calendar
   const connectGoogleCalendar = useCallback(async () => {
     if (!session?.user) {
@@ -423,92 +509,6 @@ export default function Agenda() {
       setIsGoogleConnected(false);
     }
   }, [session]);
-
-  // Sync with Google Calendar
-  const syncWithGoogleCalendar = useCallback(async () => {
-    if (!session?.user || !isGoogleConnected) {
-      toast.error('Please connect Google Calendar first');
-      return;
-    }
-
-    if (googleSyncLoading) return; // Prevent duplicate syncs
-
-    setGoogleSyncLoading(true);
-    try {
-      const { searchParams } = new URL(window.location.href);
-      const period = searchParams.get('period') || 'week';
-      
-      const response = await fetch(`/api/google/calendar/events?period=${period}&maxResults=50`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('bearer_token')}` }
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        if (data.code === 'NOT_CONNECTED') {
-          setIsGoogleConnected(false);
-          toast.error('Google Calendar disconnected - please reconnect');
-        } else if (data.code === 'REFRESH_FAILED' || data.code === 'TOKEN_EXPIRED') {
-          toast.error('Google token expired - reconnecting...');
-          setIsGoogleConnected(false);
-          await connectGoogleCalendar(); // Attempt reconnect
-        } else {
-          throw new Error(data.error || 'Sync failed');
-        }
-        return;
-      }
-
-      const { events: googleEvents, count, period: fetchedPeriod } = await response.json();
-      
-      // Map to AgendaEvent format (filter for selected date or upcoming)
-      const selectedDateStr = selectedDate.toISOString().split('T')[0];
-      const todayStr = new Date().toISOString().split('T')[0];
-      
-      const mappedEvents: AgendaEvent[] = googleEvents
-        .filter((event: any) => {
-          const eventDate = event.start_date;
-          // Show today's or upcoming events within the period
-          if (period === 'today') return eventDate === todayStr;
-          return new Date(eventDate) >= new Date(selectedDateStr) && 
-                 new Date(eventDate) <= new Date(new Date(selectedDateStr).getTime() + 7 * 24 * 60 * 60 * 1000);
-        })
-        .map((event: any) => ({
-          id: `google_${event.id}`,
-          title: event.title || 'Untitled Event',
-          description: event.description,
-          date: event.start_date,
-          time: event.all_day ? 'All Day' : (event.start_time || 'TBD'),
-          endTime: event.all_day || !event.end_time ? undefined : event.end_time,
-          source: 'google' as const,
-          location: event.location,
-          color: '#4285f4', // Google blue
-          reminders: [15, 60], // Default Google reminders
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }));
-
-      // Merge: replace old Google events, keep others, sort by time
-      const existingNonGoogle = events.filter(e => e.source !== 'google');
-      const mergedEvents = [...existingNonGoogle, ...mappedEvents]
-        .sort((a, b) => {
-          if (a.time === 'All Day' && b.time !== 'All Day') return -1;
-          if (a.time !== 'All Day' && b.time === 'All Day') return 1;
-          return (a.time || '00:00').localeCompare(b.time || '00:00');
-        });
-
-      setEvents(mergedEvents);
-      
-      toast.success(`Synced ${mappedEvents.length} Google events for ${fetchedPeriod}`);
-      setLastSyncTime(new Date());
-    } catch (error) {
-      console.error('Google sync error:', error);
-      toast.error(`Google sync failed: ${error.message}`);
-      if (error.message.includes('expired') || error.message.includes('refresh')) {
-        setIsGoogleConnected(false);
-      }
-    } finally {
-      setGoogleSyncLoading(false);
-    }
-  }, [session, isGoogleConnected, googleSyncLoading, selectedDate, events, connectGoogleCalendar]);
 
   // Test Google Connection and Preview
   const testGoogleConnectionAndPreview = useCallback(async () => {
