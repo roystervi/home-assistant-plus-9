@@ -110,14 +110,16 @@ class HomeAssistantAPI {
   private subscribedToEvents = false;
 
   constructor(config?: Partial<HAConfig>) {
-    const defaultConfig: HAConfig = {
-      url: process.env.HOME_ASSISTANT_URL || 'http://192.168.1.4:8123',
-      token: process.env.HOME_ASSISTANT_TOKEN || '',
-      autoReconnect: true,
-      reconnectInterval: 5000,
-      maxReconnectAttempts: 10,
-      entities: [...ALL_ENTITIES],
-    };
+    const defaultConfig = {
+            url: process.env.HOME_ASSISTANT_URL || 'http://192.168.1.54:8123',
+            token: process.env.HOME_ASSISTANT_TOKEN || '',
+            autoReconnect: true,
+            reconnectInterval: 5000,
+            maxReconnectAttempts: 10,
+            entities: [
+                ...ALL_ENTITIES
+            ]
+        };
     
     this.config = { ...defaultConfig, ...config };
   }

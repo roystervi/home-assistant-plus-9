@@ -106,7 +106,7 @@ const DEVICE_ENERGY_ENTITIES = [
 
 export const useHomeAssistant = (config: UseHomeAssistantConfig = {}): UseHomeAssistantReturn => {
   // Get settings from storage instead of using hardcoded values
-  const getStoredUrl = () => haConnectionSettings.getSetting("url") || 'http://192.168.1.4:8123'
+  const getStoredUrl = () => haConnectionSettings.getSetting("url") || 'http://192.168.1.54:8123'
   const getStoredToken = () => haConnectionSettings.getSetting("token") || null
   const getStoredTimeout = () => haConnectionSettings.getSetting("connectionTimeout") || 10000
 
